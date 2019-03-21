@@ -9,13 +9,13 @@ from keras.layers import Input, Embedding, Dropout, Bidirectional, GRU, CuDNNGRU
 
 # = = = = = = = = = = = = = = =
 
-is_GPU = True
+is_GPU = False
 save_weights = True
 save_history = True
 
-path_root = ''
+path_root = '..'
 path_to_code = path_root + '/code/'
-path_to_data = path_root + 'data/'
+path_to_data = path_root + '/data/'
 
 sys.path.insert(0, path_to_code)
 
@@ -49,17 +49,17 @@ def bidir_gru(my_seq,n_units,is_GPU):
 
 # = = = = = hyper-parameters = = = = =
 
-n_units = 50
+n_units = 100
 drop_rate = 0.5
 batch_size = 96
-nb_epochs = 10
+nb_epochs = 30
 my_optimizer = 'adam'
-my_patience = 4
+my_patience = 3
 
 # = = = = = data loading = = = = =
 
 docs = np.load(path_to_data + 'documents.npy')
-embeddings = np.load(path_to_data + 'embeddings.npy')
+embeddings = np.load(path_to_data + 'embeddings_relabel.npy')
 
 with open(path_to_data + 'train_idxs.txt', 'r') as file:
     train_idxs = file.read().splitlines()

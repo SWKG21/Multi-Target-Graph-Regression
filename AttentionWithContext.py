@@ -2,6 +2,7 @@ import keras.backend as K
 from keras.layers import Layer
 from keras import initializers, regularizers, constraints
 
+
 def dot_product(x, kernel):
     """
     https://github.com/richliao/textClassifier/issues/13#issuecomment-377323318
@@ -62,6 +63,7 @@ class AttentionWithContext(Layer):
         self.bias = bias
         super(AttentionWithContext, self).__init__(**kwargs)
     
+    
     def build(self, input_shape):
         assert len(input_shape) == 3
         
@@ -84,10 +86,12 @@ class AttentionWithContext(Layer):
                                  constraint=self.u_constraint)
         
         super(AttentionWithContext, self).build(input_shape)
-    
+
+
     def compute_mask(self, input, input_mask=None):
         # do not pass the mask to the next layers
         return None
+    
     
     def call(self, x, mask=None):
         uit = dot_product(x, self.W)
@@ -112,12 +116,11 @@ class AttentionWithContext(Layer):
         
         a = K.expand_dims(a)
         weighted_input = x * a
-        
+
         if self.return_coefficients:
             return [K.sum(weighted_input, axis=1), a]
         else:
             return K.sum(weighted_input, axis=1)
-    
     
     
     def compute_output_shape(self, input_shape):

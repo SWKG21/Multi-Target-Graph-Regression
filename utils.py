@@ -20,7 +20,7 @@ def wl_relabeling(graphs, h):
     # initial labeling
 	ind = 0
 	for G in graphs:
-		labels[ind] = np.zeros(G.number_of_nodes(), dtype = np.int32)
+		labels[ind] = np.zeros(G.number_of_nodes(), dtype=np.int32)
 		node2index = {}
 		for node in G.nodes():
 		    node2index[node] = len(node2index)

@@ -43,7 +43,7 @@ def bidir_gru(my_seq,n_units,is_GPU):
 # = = = = = = = = = = = = = = =
 
 docs = np.load(path_to_data + 'documents.npy')
-embeddings = np.load(path_to_data + 'embeddings.npy')
+embeddings = np.load(path_to_data + 'embeddings_relabel.npy')
 
 with open(path_to_data + 'train_idxs.txt', 'r') as file:
     train_idxs = file.read().splitlines()
@@ -79,7 +79,7 @@ for tgt in range(4):
 
 # = = = = = PREDICTIONS = = = = =     
 
-all_preds_mean = []
+# all_preds_mean = []
 all_preds_han = []
 
 for tgt in range(4):
@@ -88,12 +88,12 @@ for tgt in range(4):
     
     # * * * mean baseline * * * 
     
-    with open(path_to_data + 'targets/train/target_' + str(tgt) + '.txt', 'r') as file:
-        target = file.read().splitlines()
+    # with open(path_to_data + 'targets/train/target_' + str(tgt) + '.txt', 'r') as file:
+    #     target = file.read().splitlines()
     
-    target = np.array(target).astype('float')
-    target_mean = np.mean(target)
-    all_preds_mean.append([target_mean]*len(test_idxs))
+    # target = np.array(target).astype('float')
+    # target_mean = np.mean(target)
+    # all_preds_mean.append([target_mean]*len(test_idxs))
     
     # * * * HAN * * * 
     
@@ -131,15 +131,15 @@ for tgt in range(4):
     all_preds_han.append(model.predict(docs_test).tolist())
 
 # flatten
-all_preds_mean = [elt for sublist in all_preds_mean for elt in sublist]
+# all_preds_mean = [elt for sublist in all_preds_mean for elt in sublist]
 all_preds_han = [elt[0] for sublist in all_preds_han for elt in sublist]
 
 # write predictions in Kaggle format
-with open(path_to_data + 'predictions_mean.txt', 'w') as file:
-    file.write('id,pred\n')
-    for idx,pred in enumerate(all_preds_mean):
-        pred = format(pred, '.7f')
-        file.write(str(idx) + ',' + pred + '\n')
+# with open(path_to_data + 'predictions_mean.txt', 'w') as file:
+#     file.write('id,pred\n')
+#     for idx,pred in enumerate(all_preds_mean):
+#         pred = format(pred, '.7f')
+#         file.write(str(idx) + ',' + pred + '\n')
 
 with open(path_to_data + 'predictions_han.txt', 'w') as file:
     file.write('id,pred\n')

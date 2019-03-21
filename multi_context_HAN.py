@@ -5,24 +5,25 @@ import numpy as np
 from keras.callbacks import EarlyStopping, ModelCheckpoint
 
 from keras.models import Model
-from keras.layers import Input, Embedding, Dropout, Bidirectional, GRU, CuDNNGRU, TimeDistributed, Dense
+from keras.layers import Input, Embedding, Dropout, Bidirectional, GRU, CuDNNGRU, TimeDistributed, Dense, LSTM, CuDNNLSTM
 
 # = = = = = = = = = = = = = = =
 
-is_GPU = True
+is_GPU = False
 save_weights = True
 save_history = True
 
-path_root = ''
+path_root = '..'
 path_to_code = path_root + '/code/'
-path_to_data = path_root + 'data/'
+path_to_data = path_root + '/data/'
 
 sys.path.insert(0, path_to_code)
 
 # = = = = = = = = = = = = = = =
 
 from AttentionWithContext import AttentionWithContext
-# from AttentionWithMultiContext import AttentionWithMultiContext
+from StructuredSelfAttentive import StructuredSelfAttentive
+from AttentionWithMultiContext import AttentionWithMultiContext
 
 
 def bidir_gru(my_seq,n_units,is_GPU):
@@ -48,19 +49,45 @@ def bidir_gru(my_seq,n_units,is_GPU):
                              merge_mode='concat', weights=None)(my_seq)
 
 
+def bidir_lstm(my_seq,n_units,is_GPU):
+    '''
+    just a convenient wrapper for bidirectional RNN with LSTM units
+    enables CUDA acceleration on GPU
+    # regardless of whether training is done on GPU, model can be loaded on CPU
+    # see: https://github.com/keras-team/keras/pull/9112
+    '''
+    if is_GPU:
+        return Bidirectional(CuDNNLSTM(units=n_units,
+                                      return_sequences=True),
+                             merge_mode='concat', weights=None)(my_seq)
+    else:
+        return Bidirectional(LSTM(units=n_units,
+                                 activation='tanh', 
+                                 dropout=0.0,
+                                 recurrent_dropout=0.0,
+                                 implementation=1,
+                                 return_sequences=True,
+                                 recurrent_activation='sigmoid'),
+                             merge_mode='concat', weights=None)(my_seq)
+
+
 # = = = = = hyper-parameters = = = = =
 
-n_units = 50
+n_units = 10
 drop_rate = 0.5
 batch_size = 96
 nb_epochs = 10
 my_optimizer = 'adam'
 my_patience = 4
+mc_n_units = 10
+da = 20
+r = 10
+
 
 # = = = = = data loading = = = = =
 
 docs = np.load(path_to_data + 'documents.npy')
-embeddings = np.load(path_to_data + 'embeddings.npy')
+embeddings = np.load(path_to_data + 'embeddings_relabel.npy')
 
 with open(path_to_data + 'train_idxs.txt', 'r') as file:
     train_idxs = file.read().splitlines()
@@ -99,22 +126,36 @@ for tgt in range(4):
                         trainable=False,
                         )(sent_ints)
 
+    # HAN sent encoder
     sent_wv_dr = Dropout(drop_rate)(sent_wv)
-    sent_wa = bidir_gru(sent_wv_dr,n_units,is_GPU)
-    sent_att_vec,word_att_coeffs = AttentionWithContext(return_coefficients=True)(sent_wa)
+    sent_wa = bidir_gru(sent_wv_dr, n_units, is_GPU)
+    sent_att_vec, word_att_coeffs = AttentionWithContext(return_coefficients=True)(sent_wa)
     sent_att_vec_dr = Dropout(drop_rate)(sent_att_vec)                      
-    sent_encoder = Model(sent_ints,sent_att_vec_dr)
+    sent_encoder = Model(sent_ints, sent_att_vec_dr)
+
+    # structured self-attentive
+    mc_sent_wv_dr = Dropout(drop_rate)(sent_wv)
+    mc_sent_wa = bidir_lstm(mc_sent_wv_dr, mc_n_units, is_GPU)
+    mc_sent_att_vec, mc_word_att_coeffs = StructuredSelfAttentive(da=da, r=r, return_coefficients=True)(mc_sent_wa)
+    mc_sent_att_vec_dr = Dropout(drop_rate)(mc_sent_att_vec)                      
+    mc_sent_encoder = Model(sent_ints, mc_sent_att_vec_dr)
+
 
     doc_ints = Input(shape=(docs_train.shape[1],docs_train.shape[2],))
+         
     sent_att_vecs_dr = TimeDistributed(sent_encoder)(doc_ints)
-    doc_sa = bidir_gru(sent_att_vecs_dr,n_units,is_GPU)
-    doc_att_vec,sent_att_coeffs = AttentionWithContext(return_coefficients=True)(doc_sa)
-    # doc_att_vec,sent_att_coeffs = AttentionWithMultiContext(return_coefficients=True)(doc_sa)
+    doc_sa = bidir_gru(sent_att_vecs_dr, n_units, is_GPU)
+    
+    mc_sent_att_vecs_dr = TimeDistributed(mc_sent_encoder)(doc_ints)
+    mc_doc_sa = bidir_gru(mc_sent_att_vecs_dr, n_units, is_GPU)
+    
+    # doc_att_vec, sent_att_coeffs = AttentionWithContext(return_coefficients=True)(mc_doc_sa)
+    doc_att_vec, sent_att_coeffs = AttentionWithMultiContext(return_coefficients=True)([doc_sa, mc_doc_sa])
     doc_att_vec_dr = Dropout(drop_rate)(doc_att_vec)
 
     preds = Dense(units=1,
                   activation='sigmoid')(doc_att_vec_dr)
-    model = Model(doc_ints,preds)
+    model = Model(doc_ints, preds)
 
     model.compile(loss='mean_squared_error',
                   optimizer=my_optimizer,
@@ -135,7 +176,7 @@ for tgt in range(4):
                                    save_weights_only=True)
 
     if save_weights:
-        my_callbacks = [early_stopping,checkpointer]
+        my_callbacks = [early_stopping, checkpointer]
     else:
         my_callbacks = [early_stopping]
 

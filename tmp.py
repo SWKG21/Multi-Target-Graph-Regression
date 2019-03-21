@@ -2,6 +2,7 @@ import os
 import re
 import numpy as np
 import pandas as pd
+from sklearn.preprocessing import MinMaxScaler
 from preprocessing_baseline import *
 from utils import *
 
@@ -36,10 +37,9 @@ for i, g in enumerate(graphs):
 
 embeddings_relabel = np.concatenate([embeddings, node_labels], axis=1)
 print ('node embedding shape after adding relabels', embeddings_relabel.shape)
+scaler = MinMaxScaler()
+embeddings_relabel = scaler.fit_transform(embeddings_relabel)
 np.save(path_to_data + 'embeddings_relabel.npy', embeddings_relabel, allow_pickle=False)
-
-
-
 
 
 
