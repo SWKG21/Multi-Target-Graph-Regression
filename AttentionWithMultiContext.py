@@ -1,6 +1,8 @@
 import keras.backend as K
 from keras.layers import Layer
 from keras import initializers, regularizers, constraints
+
+from utils import *
 from AttentionWithContext import *
     
 

@@ -5,6 +5,10 @@ import numpy as np
 from keras.models import Model
 from keras.layers import Input, Embedding, Dropout, Bidirectional, GRU, CuDNNGRU, TimeDistributed, Dense
 
+from utils import *
+from AttentionWithContext import AttentionWithContext
+
+
 # = = = = = = = = = = = = = = =
 
 is_GPU = True
@@ -15,30 +19,6 @@ path_to_code = path_root + '/code/'
 sys.path.insert(0, path_to_code)
 
 # = = = = = = = = = = = = = = =
-
-from AttentionWithContext import AttentionWithContext
-
-def bidir_gru(my_seq,n_units,is_GPU):
-    '''
-    just a convenient wrapper for bidirectional RNN with GRU units
-    enables CUDA acceleration on GPU
-    # regardless of whether training is done on GPU, model can be loaded on CPU
-    # see: https://github.com/keras-team/keras/pull/9112
-    '''
-    if is_GPU:
-        return Bidirectional(CuDNNGRU(units=n_units,
-                                      return_sequences=True),
-                             merge_mode='concat', weights=None)(my_seq)
-    else:
-        return Bidirectional(GRU(units=n_units,
-                                 activation='tanh', 
-                                 dropout=0.0,
-                                 recurrent_dropout=0.0,
-                                 implementation=1,
-                                 return_sequences=True,
-                                 reset_after=True,
-                                 recurrent_activation='sigmoid'),
-                             merge_mode='concat', weights=None)(my_seq)
 
 # = = = = = = = = = = = = = = =
 

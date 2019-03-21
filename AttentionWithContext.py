@@ -2,22 +2,8 @@ import keras.backend as K
 from keras.layers import Layer
 from keras import initializers, regularizers, constraints
 
+from utils import *
 
-def dot_product(x, kernel):
-    """
-    https://github.com/richliao/textClassifier/issues/13#issuecomment-377323318
-    Wrapper for dot product operation, in order to be compatible with both
-    Theano and Tensorflow
-    Args:
-        x (): input
-        kernel (): weights
-    Returns:
-    """
-    if K.backend() == 'tensorflow':
-        return K.squeeze(K.dot(x, K.expand_dims(kernel)), axis=-1)
-    else:
-        return K.dot(x, kernel)
-    
 
 class AttentionWithContext(Layer):
     """
@@ -86,11 +72,6 @@ class AttentionWithContext(Layer):
                                  constraint=self.u_constraint)
         
         super(AttentionWithContext, self).build(input_shape)
-
-
-    def compute_mask(self, input, input_mask=None):
-        # do not pass the mask to the next layers
-        return None
     
     
     def call(self, x, mask=None):

@@ -2,6 +2,9 @@ import numpy as np
 from collections import defaultdict
 import copy
 
+import keras.backend as K
+from keras.layers import Bidirectional, GRU, CuDNNGRU, LSTM, CuDNNLSTM
+
 
 def wl_relabeling(graphs, h):
 
@@ -65,3 +68,64 @@ def wl_relabeling(graphs, h):
 		labels = copy.deepcopy(compressed_labels)
 
 	return labels
+
+
+def dot_product(x, kernel):
+    """
+    https://github.com/richliao/textClassifier/issues/13#issuecomment-377323318
+    Wrapper for dot product operation, in order to be compatible with both
+    Theano and Tensorflow
+    Args:
+        x (): input
+        kernel (): weights
+    Returns:
+    """
+    if K.backend() == 'tensorflow':
+        return K.squeeze(K.dot(x, K.expand_dims(kernel)), axis=-1)
+    else:
+        return K.dot(x, kernel)
+
+
+def bidir_gru(my_seq,n_units,is_GPU):
+    '''
+    just a convenient wrapper for bidirectional RNN with GRU units
+    enables CUDA acceleration on GPU
+    # regardless of whether training is done on GPU, model can be loaded on CPU
+    # see: https://github.com/keras-team/keras/pull/9112
+    '''
+    if is_GPU:
+        return Bidirectional(CuDNNGRU(units=n_units,
+                                      return_sequences=True),
+                             merge_mode='concat', weights=None)(my_seq)
+    else:
+        return Bidirectional(GRU(units=n_units,
+                                 activation='tanh', 
+                                 dropout=0.0,
+                                 recurrent_dropout=0.0,
+                                 implementation=1,
+                                 return_sequences=True,
+                                 reset_after=True,
+                                 recurrent_activation='sigmoid'),
+                             merge_mode='concat', weights=None)(my_seq)
+
+
+def bidir_lstm(my_seq,n_units,is_GPU):
+    '''
+    just a convenient wrapper for bidirectional RNN with LSTM units
+    enables CUDA acceleration on GPU
+    # regardless of whether training is done on GPU, model can be loaded on CPU
+    # see: https://github.com/keras-team/keras/pull/9112
+    '''
+    if is_GPU:
+        return Bidirectional(CuDNNLSTM(units=n_units,
+                                      return_sequences=True),
+                             merge_mode='concat', weights=None)(my_seq)
+    else:
+        return Bidirectional(LSTM(units=n_units,
+                                 activation='tanh', 
+                                 dropout=0.0,
+                                 recurrent_dropout=0.0,
+                                 implementation=1,
+                                 return_sequences=True,
+                                 recurrent_activation='sigmoid'),
+                             merge_mode='concat', weights=None)(my_seq)

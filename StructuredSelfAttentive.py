@@ -1,7 +1,8 @@
 import keras.backend as K
 from keras.layers import Layer
 from keras import initializers, regularizers, constraints
-from AttentionWithContext import dot_product
+
+from utils import *
     
 
 class StructuredSelfAttentive(Layer):
