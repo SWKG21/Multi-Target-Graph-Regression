@@ -28,9 +28,9 @@ sys.path.insert(0, path_to_code)
 
 # = = = = = hyper-parameters = = = = =
 
-n_units = 50
+n_units = 20
 mc_n_units = 100
-da = 20
+da = 50
 r = 15
 drop_rate = 0.5
 batch_size = 96
@@ -140,7 +140,7 @@ model.fit(docs_train,
 hist = model.history.history
 
 if save_history:
-    with open(path_to_data + 'model_history_' + str(tgt) + '.json', 'w') as file:
+    with open(path_to_data + 'model_history_' + str(tgt) + '0.json', 'w') as file:
         json.dump(hist, file, sort_keys=False, indent=4)
 
 print('* * * * * * * target',tgt,'done * * * * * * *')    

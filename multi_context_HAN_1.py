@@ -4,7 +4,7 @@ import numpy as np
 
 from keras.callbacks import EarlyStopping, ModelCheckpoint
 from keras.models import Model
-from keras.layers import Input, Embedding, Dropout, Bidirectional, GRU, CuDNNGRU, TimeDistributed, Dense, LSTM, CuDNNLSTM
+from keras.layers import Input, Embedding, Dropout, TimeDistributed, Dense
 
 from utils import *
 from AttentionWithContext import AttentionWithContext
@@ -29,14 +29,15 @@ sys.path.insert(0, path_to_code)
 # = = = = = hyper-parameters = = = = =
 
 n_units = 10
+mc_n_units = 10
+da = 20
+r = 10
 drop_rate = 0.5
 batch_size = 96
 nb_epochs = 10
 my_optimizer = 'adam'
 my_patience = 4
-mc_n_units = 10
-da = 20
-r = 10
+
 
 # = = = = = data loading = = = = =
 

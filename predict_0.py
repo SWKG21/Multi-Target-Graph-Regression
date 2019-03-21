@@ -3,7 +3,7 @@ import json
 import numpy as np
 
 from keras.models import Model
-from keras.layers import Input, Embedding, Dropout, Bidirectional, GRU, CuDNNGRU, TimeDistributed, Dense
+from keras.layers import Input, Embedding, Dropout, TimeDistributed, Dense
 
 from utils import *
 from AttentionWithContext import AttentionWithContext
