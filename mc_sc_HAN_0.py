@@ -4,12 +4,13 @@ import numpy as np
 
 from keras.callbacks import EarlyStopping, ModelCheckpoint
 from keras.models import Model
-from keras.layers import Input, Embedding, Dropout, TimeDistributed, Dense, Add
+from keras.layers import Input, Embedding, Dropout, TimeDistributed, Dense, Add, add
 
 from utils import *
 from AttentionWithContext import AttentionWithContext
 from StructuredSelfAttentive import StructuredSelfAttentive
 from AttentionWithMultiContext import AttentionWithMultiContext
+from SkipConnection import SkipConnection
 
 
 # = = = = = = = = = = = = = = =
@@ -28,13 +29,13 @@ sys.path.insert(0, path_to_code)
 
 # = = = = = hyper-parameters = = = = =
 
-n_units = 100
+n_units = 50
 mc_n_units = 100
 da = 20
 r = 15
 drop_rate = 0.5
-batch_size = 96
-nb_epochs = 50
+batch_size = 128
+nb_epochs = 100
 my_optimizer = 'adam'
 my_patience = 5
 
@@ -86,7 +87,8 @@ sent_wv_dr = Dropout(drop_rate)(sent_wv)
 sent_wa = bidir_gru(sent_wv_dr, n_units, is_GPU)
 sent_att_vec, word_att_coeffs = AttentionWithContext(return_coefficients=True)(sent_wa)
 sent_att_vec_dr = Dropout(drop_rate)(sent_att_vec)
-sent_added = Add()([sent_wv_dr, sent_att_vec_dr])
+# skip connection
+sent_added = SkipConnection()([sent_att_vec_dr, sent_wv_dr])
 sent_encoder = Model(sent_ints, sent_added)
 
 # structured self-attentive
@@ -94,7 +96,8 @@ mc_sent_wv_dr = Dropout(drop_rate)(sent_wv)
 mc_sent_wa = bidir_lstm(mc_sent_wv_dr, mc_n_units, is_GPU)
 mc_sent_att_vec, mc_word_att_coeffs = StructuredSelfAttentive(da=da, r=r, return_coefficients=True)(mc_sent_wa)
 mc_sent_att_vec_dr = Dropout(drop_rate)(mc_sent_att_vec)
-mc_sent_added = Add()([mc_sent_wv_dr, mc_sent_att_vec_dr])
+# skip connection
+mc_sent_added = SkipConnection()([mc_sent_att_vec_dr, mc_sent_wv_dr])
 mc_sent_encoder = Model(sent_ints, mc_sent_added)
 
 doc_ints = Input(shape=(docs_train.shape[1], docs_train.shape[2],))
@@ -122,7 +125,7 @@ early_stopping = EarlyStopping(monitor='val_loss',
                                 mode='min')
 
 # save model corresponding to best epoch
-checkpointer = ModelCheckpoint(filepath=path_to_data + 'model_' + str(tgt), 
+checkpointer = ModelCheckpoint(filepath=path_to_data + 'model_sc' + str(tgt), 
                                 verbose=1, 
                                 save_best_only=True,
                                 save_weights_only=True)
@@ -142,7 +145,7 @@ model.fit(docs_train,
 hist = model.history.history
 
 if save_history:
-    with open(path_to_data + 'model_history_' + str(tgt) + '_sc.json', 'w') as file:
+    with open(path_to_data + 'model_history_sc' + str(tgt) + '_sc.json', 'w') as file:
         json.dump(hist, file, sort_keys=False, indent=4)
 
 print('* * * * * * * target',tgt,'done * * * * * * *')    

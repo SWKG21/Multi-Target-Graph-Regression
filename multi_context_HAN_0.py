@@ -28,7 +28,7 @@ sys.path.insert(0, path_to_code)
 
 # = = = = = hyper-parameters = = = = =
 
-n_units = 50
+n_units = 60
 mc_n_units = 100
 da = 20
 r = 15

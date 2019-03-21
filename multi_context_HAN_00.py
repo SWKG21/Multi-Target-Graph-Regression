@@ -29,8 +29,8 @@ sys.path.insert(0, path_to_code)
 # = = = = = hyper-parameters = = = = =
 
 n_units = 20
-mc_n_units = 100
-da = 50
+mc_n_units = 50
+da = 20
 r = 15
 drop_rate = 0.5
 batch_size = 96
@@ -120,7 +120,7 @@ early_stopping = EarlyStopping(monitor='val_loss',
                                 mode='min')
 
 # save model corresponding to best epoch
-checkpointer = ModelCheckpoint(filepath=path_to_data + 'model_' + str(tgt), 
+checkpointer = ModelCheckpoint(filepath=path_to_data + 'model_0' + str(tgt), 
                                 verbose=1, 
                                 save_best_only=True,
                                 save_weights_only=True)
@@ -140,7 +140,7 @@ model.fit(docs_train,
 hist = model.history.history
 
 if save_history:
-    with open(path_to_data + 'model_history_' + str(tgt) + '0.json', 'w') as file:
+    with open(path_to_data + 'model_history_0' + str(tgt) + '.json', 'w') as file:
         json.dump(hist, file, sort_keys=False, indent=4)
 
 print('* * * * * * * target',tgt,'done * * * * * * *')    
