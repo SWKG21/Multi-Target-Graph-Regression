@@ -29,7 +29,7 @@ sys.path.insert(0, path_to_code)
 
 # = = = = = hyper-parameters = = = = =
 
-n_units = 50
+n_units = 60
 mc_n_units = 100
 da = 20
 r = 15
@@ -82,24 +82,27 @@ sent_wv = Embedding(input_dim=embeddings.shape[0],
                     trainable=False,
                     )(sent_ints)
 
-# HAN sent encoder
+## HAN sent encoder
 sent_wv_dr = Dropout(drop_rate)(sent_wv)
 sent_wa = bidir_gru(sent_wv_dr, n_units, is_GPU)
+# sent_wa = bidir_gru(sent_wa, n_units, is_GPU)
 sent_att_vec, word_att_coeffs = AttentionWithContext(return_coefficients=True)(sent_wa)
 sent_att_vec_dr = Dropout(drop_rate)(sent_att_vec)
 # skip connection
 sent_added = SkipConnection()([sent_att_vec_dr, sent_wv_dr])
 sent_encoder = Model(sent_ints, sent_added)
 
-# structured self-attentive
+## structured self-attentive
 mc_sent_wv_dr = Dropout(drop_rate)(sent_wv)
 mc_sent_wa = bidir_lstm(mc_sent_wv_dr, mc_n_units, is_GPU)
+# mc_sent_wa = bidir_lstm(mc_sent_wa, mc_n_units, is_GPU)
 mc_sent_att_vec, mc_word_att_coeffs = StructuredSelfAttentive(da=da, r=r, return_coefficients=True)(mc_sent_wa)
 mc_sent_att_vec_dr = Dropout(drop_rate)(mc_sent_att_vec)
 # skip connection
 mc_sent_added = SkipConnection()([mc_sent_att_vec_dr, mc_sent_wv_dr])
 mc_sent_encoder = Model(sent_ints, mc_sent_added)
 
+## combine context and target
 doc_ints = Input(shape=(docs_train.shape[1], docs_train.shape[2],))
 # sentence encoder
 sent_att_vecs_dr = TimeDistributed(sent_encoder)(doc_ints)

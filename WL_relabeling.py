@@ -38,7 +38,7 @@ for i, g in enumerate(graphs):
 
 embeddings_relabel = np.concatenate([embeddings, node_labels], axis=1)
 print ('node embedding shape after adding relabels', embeddings_relabel.shape)
-scaler = MinMaxScaler()
+scaler = MinMaxScaler(feature_range=(-1, 1))
 embeddings_relabel = scaler.fit_transform(embeddings_relabel)
 np.save(path_to_data + 'embeddings_relabel.npy', embeddings_relabel, allow_pickle=False)
 
