@@ -7,6 +7,8 @@ from utils import *
 
 # = = = = = = = = = = = = = = =
 
+path_to_data = '../data/'
+
 # 0-based index of the last row of the embedding matrix (for zero-padding)
 pad_vec_idx = 1685894
 
@@ -25,7 +27,9 @@ node_embed_scale = 10
 # maximum number of 'sentences' (walks) in each pseudo-document
 max_doc_size = 90
 
-path_to_data = '../data/'
+# WL relabeling iterations
+iterations = 5
+
 
 # = = = = = = = = = = = = = = =
 
@@ -58,7 +62,7 @@ for idx, edgelist in enumerate(edgelists):
         nodes.append(node)
 
 # wl relabeling
-labels = wl_relabeling(graphs, 3)
+labels = wl_relabeling(graphs, iterations)
 
 # assign labels to nodes in order
 node_labels = np.zeros((len(nodes)+1, 1), dtype=np.int32)
