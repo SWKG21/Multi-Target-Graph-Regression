@@ -83,16 +83,16 @@ def preprocessing(path_to_data, edgelists, part, dimensions, window, num_walks,
     print('documents generated')
 
     # truncation-padding at the document level, i.e., adding or removing entire 'sentences'
-    docs = [d+[[pad_vec_idx]*max_walk_length] * (max_doc_size-len(d))
+    docs = [d + [[pad_vec_idx] * max_walk_length] * (max_doc_size-len(d))
             if len(d) < max_doc_size else d[:max_doc_size] for d in docs]
 
     docs = np.array(docs).astype('int')
-    print('documents '+part+' array shape:', docs.shape)
+    print('documents ' + part + ' array shape:', docs.shape)
     embed = np.array(embed).astype('float32')
-    print('node_embed '+part+' array shape:', embed.shape)
+    print('node_embed ' + part + ' array shape:', embed.shape)
 
-    np.save(path_to_data + 'documents'+part+'.npy', docs, allow_pickle=False)
-    np.save(path_to_data + 'node_embed'+part+'.npy', embed, allow_pickle=False)
+    np.save(path_to_data + 'documents' + part + '.npy', docs, allow_pickle=False)
+    np.save(path_to_data + 'node_embed' + part + '.npy', embed, allow_pickle=False)
     print('part ' + part + ' saved')
 
 
@@ -103,6 +103,9 @@ def concatenate_npy(path_to_data, name, save_name):
     doc1 = np.load(path_to_data + name + '1.npy')
     doc2 = np.load(path_to_data + name + '2.npy')
     doc = np.concatenate((doc1, doc2), axis=0)
+    # add 0-based index in the last row of the embedding matrix
+    if name == 'node_embed':
+        doc = np.concatenate((doc, np.zeros([1,doc.shape[1]])), axis=0)
     print(name + ' array shape:', doc.shape)
     
     np.save(path_to_data + save_name, doc, allow_pickle=False)
@@ -112,18 +115,23 @@ def concatenate_npy(path_to_data, name, save_name):
 
 def embed_weight(path_to_data, embed_name, node_embed_name, embed_max, embed_min, node_max, node_min):
     '''
-    adjust embedding weights in two embedding documents
+    adjust embedding weights in two embedding matrix
     '''
-    embeddings = np.load(path_to_data + embed_name)[:-1]
+    # load original embedding document and node embedding document
+    embeddings = np.load(path_to_data + embed_name)
     node_embed = np.load(path_to_data + node_embed_name)
+    # min max scale for each column of embeddings
     for i in range(embeddings.shape[1]):
         max_embed = max(embeddings[:, i])
         min_embed = min(embeddings[:, i])
         embeddings[:, i] = (embed_max - embed_min)/(max_embed - min_embed) * \
                            (embeddings[:, i] - min_embed) + embed_min
+    # min max scale for all values of node_embed
     max_node = np.max(node_embed)
     min_node = np.min(node_embed)
     node_embed = (node_max - node_min)/(max_node - min_node) * (node_embed - min_node) + node_min
+    
+    # combine two embedding matrix
     return np.concatenate((embeddings, node_embed), axis=1)
 
 
