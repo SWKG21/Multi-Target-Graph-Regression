@@ -81,30 +81,31 @@ def generate_docs_embeddings(path_to_data, part, edgelists, embedding_dim, windo
     docs = [d + [[pad_vec_idx]*max_walk_length] * (max_doc_size-len(d)) if len(d) < max_doc_size else d[:max_doc_size] for d in docs]
 
     docs = np.array(docs).astype('int')
-    print('documents' + part + ' array shape:', docs.shape)
+    print('documents' + str(part) + ' array shape:', docs.shape)
     embed = np.array(embed).astype('float32')
-    print('node_embed' + part + ' array shape:', embed.shape)
+    print('node_embed' + str(part) + ' array shape:', embed.shape)
 
-    np.save(path_to_data + 'documents' + part + '.npy', docs, allow_pickle=False)
-    np.save(path_to_data + 'node_embed' + part + '.npy', embed, allow_pickle=False)
-    print('part' + part + ' saved')
+    np.save(path_to_data + 'documents' + str(part) + '.npy', docs, allow_pickle=False)
+    np.save(path_to_data + 'node_embed' + str(part) + '.npy', embed, allow_pickle=False)
+    print('part' + str(part) + ' saved')
 
 
-def concatenate_npy(path_to_data, part1_name, part2_name, save_name):
+def concatenate_npy(path_to_data, filename, parts, save_name):
     '''
-        concatenate 2 parts and save (documents / node embeddings).
+        concatenate parts and save (documents / node embeddings).
     '''
-    doc1 = np.load(path_to_data + part1_name + '.npy')
-    doc2 = np.load(path_to_data + part2_name + '.npy')
-    doc = np.concatenate((doc1, doc2), axis=0)
+    docs = []
+    for i in range(1, parts+1):
+        doc_n = np.load(path_to_data + filename + str(i) + '.npy')
+        docs.append(doc_n)
+        # remove temporary split parts
+        os.remove(path_to_data + filename + str(i) + '.npy')
+    doc = np.concatenate(docs, axis=0)
     # add 0-based index in the last row of the embedding matrix
-    if 'node_embed' in part1_name:
+    if filename == 'node_embed':
         doc = np.concatenate((doc, np.zeros([1, doc.shape[1]])), axis=0)
     print('\nconcatenated array shape:', doc.shape)
     np.save(path_to_data + save_name, doc, allow_pickle=False)
-    # remove temporary split parts
-    os.remove(path_to_data + part1_name + '.npy')
-    os.remove(path_to_data + part2_name + '.npy')
 
 
 def wl_relabeling(graphs, h):

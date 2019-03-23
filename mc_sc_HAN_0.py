@@ -42,8 +42,8 @@ my_patience = 5
 
 # = = = = = data loading = = = = =
 
-docs = np.load(path_to_data + 'documents.npy')
-embeddings = np.load(path_to_data + 'embeddings.npy')
+docs = np.load(path_to_data + 'documents_p2q_5.npy')
+embeddings = np.load(path_to_data + 'embeddings_p2q_5.npy')
 
 with open(path_to_data + 'train_idxs.txt', 'r') as file:
     train_idxs = file.read().splitlines()

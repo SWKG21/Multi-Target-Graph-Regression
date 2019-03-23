@@ -7,21 +7,24 @@ from utils import *
 
 # = = = = = = = = = = = = = = =
 
-path_to_data = '../data/'
+path_to_data = 'data/'
 
 # 0-based index of the last row of the embedding matrix (for zero-padding)
 pad_vec_idx = 1685894
 
+# split to parts
+parts = 4
+
 # node2vec walks parameters
-p = 1  # 1/p to go back
-q = 1  # 1/q to go out
-num_walks = 5
-min_walk_length = 7
-max_walk_length = 12
+p = 0.5  # 1/p to go back
+q = 3  # 1/q to go out
+num_walks = 6
+min_walk_length = 5
+max_walk_length = 15
 
 # node2vec embedding parameters
-embedding_dim = 8
-window_size = 6
+embedding_dim = 12
+window_size = 5
 node_embed_scale = 10
 
 # maximum number of 'sentences' (walks) in each pseudo-document
@@ -39,15 +42,20 @@ edgelists.sort(key=natural_keys)
 
 ### -------------------- node2vec sampling and embedding -------------------- ###
 
-# generate documents and node embeddings by two parts because of memory limitation
-generate_docs_embeddings(path_to_data, '1', edgelists[:300], embedding_dim, window_size, num_walks, min_walk_length, max_walk_length, p, q, pad_vec_idx, max_doc_size)
-generate_docs_embeddings(path_to_data, '2', edgelists[93500:], embedding_dim, window_size, num_walks, min_walk_length, max_walk_length, p, q, pad_vec_idx, max_doc_size)
+# generate documents and node embeddings by part because of memory limitation
+start = 0
+end = round(len(edgelists)/parts)
+for i in range(1, parts):
+    generate_docs_embeddings(path_to_data, i, edgelists[start:end], embedding_dim, window_size, num_walks, min_walk_length, max_walk_length, p, q, pad_vec_idx, max_doc_size)
+    start = end
+    end += round(len(edgelists)/parts)
+generate_docs_embeddings(path_to_data, parts, edgelists[start:], embedding_dim, window_size, num_walks, min_walk_length, max_walk_length, p, q, pad_vec_idx, max_doc_size)
 
-# combine 2 parts of documents
-concatenate_npy(path_to_data, 'documents1', 'documents2', 'documents.npy')
+# combine parts of documents
+concatenate_npy(path_to_data, 'documents', parts, 'documents_p0_5q3.npy')
 
-# combine 2 parts of node embeddings
-concatenate_npy(path_to_data, 'node_embed1', 'node_embed2', 'node_embed_p1q1.npy')
+# combine parts of node embeddings
+concatenate_npy(path_to_data, 'node_embed', parts, 'node_embed_p0_5q3.npy')
 
 
 ### -------------------- WL relabeling -------------------- ###
@@ -85,10 +93,10 @@ scaler = MinMaxScaler(feature_range=(-1, 1))
 attributes_relabel = scaler.fit_transform(attributes_relabel)
 
 # node mebeddings scaling
-node_embeddings = np.load(path_to_data + 'node_embed_p1q1.npy')
+node_embeddings = np.load(path_to_data + 'node_embed_p0_5q3.npy')
 node_embeddings = node_embeddings * node_embed_scale
 
 # combine attributes and node embeddings
 embeddings = np.concatenate((attributes_relabel, node_embeddings), axis=1)
-np.save(path_to_data + 'embeddings_p1q1.npy', embeddings, allow_pickle=False)
+np.save(path_to_data + 'embeddings_p0_5q3.npy', embeddings, allow_pickle=False)
 print ('\nfinal embeddings shape', embeddings.shape)
