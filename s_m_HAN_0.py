@@ -12,6 +12,11 @@ from StructuredSelfAttentive import StructuredSelfAttentive
 from AttentionWithMultiContext import AttentionWithMultiContext
 
 
+"""
+    sentence encoder: AttentionWithContext (s in file name); StructuredSelfAttentive (m in file name);
+    document encoder: AttentionWithMultiContext, StructuredSelfAttentive for u
+"""
+
 # = = = = = = = = = = = = = = =
 
 is_GPU = True

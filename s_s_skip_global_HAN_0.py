@@ -2,32 +2,34 @@ import sys
 import json
 import numpy as np
 
+from keras.backend import concatenate
 from keras.callbacks import EarlyStopping, ModelCheckpoint
 from keras.models import Model
-from keras.layers import Input, Embedding, Dropout, TimeDistributed, Dense, Add, add
+from keras.layers import Input, Embedding, Dropout, TimeDistributed, Dense, Add, add, Lambda, Reshape
 
 from utils import *
 from AttentionWithContext import AttentionWithContext
 from StructuredSelfAttentive import StructuredSelfAttentive
 from AttentionWithMultiContext import AttentionWithMultiContext
 from SkipConnection import SkipConnection
+from AttentionWithGlobalContext import AttentionWithGlobalContext
 
 
 """
-    sentence encoder: StructuredSelfAttentive (first m in file name); StructuredSelfAttentive (second m in file name); add SkipConnection
-    document encoder: AttentionWithMultiContext, second StructuredSelfAttentive for u
+    sentence encoder: AttentionWithContext (first s in file name), add SkipConnection
+    document encoder: AttentionWithMultiContext, AttentionWithContext (second s in file name) for u
 """
 
 
 # = = = = = = = = = = = = = = =
 
-is_GPU = True
+is_GPU = False
 save_weights = True
 save_history = True
 
-path_root = ''
+path_root = '..'
 path_to_code = path_root + '/code/'
-path_to_data = path_root + 'data/'
+path_to_data = path_root + '/data/'
 
 sys.path.insert(0, path_to_code)
 
@@ -35,8 +37,8 @@ sys.path.insert(0, path_to_code)
 
 # = = = = = hyper-parameters = = = = =
 
-n_units = 60
-sc_n_units = 100
+n_units = 30
+gc_n_units = 40
 da = 15
 r = 10
 drop_rate = 0.3
@@ -76,7 +78,7 @@ target_train = np.array([target[elt] for elt in idxs_select_train]).astype('floa
 target_val = np.array([target[elt] for elt in idxs_select_val]).astype('float')
 
 print('data loaded')
-
+print (docs_train.shape)
 # = = = = = defining architecture = = = = =
 
 sent_ints = Input(shape=(docs_train.shape[2],))
@@ -88,36 +90,32 @@ sent_wv = Embedding(input_dim=embeddings.shape[0],
                     trainable=False,
                     )(sent_ints)
 
-## HAN sent encoder
+## HAN sent encoder for context
 sent_wv_dr = Dropout(drop_rate)(sent_wv)
 sent_wa = bidir_gru(sent_wv_dr, n_units, is_GPU)
-# sent_wa = bidir_gru(sent_wa, n_units, is_GPU)
-sent_att_vec, word_att_coeffs = StructuredSelfAttentive(da=da, r=r, return_coefficients=True)(sent_wa)
+sent_att_vec, word_att_coeffs = AttentionWithContext(return_coefficients=True)(sent_wa)
 sent_att_vec_dr = Dropout(drop_rate)(sent_att_vec)
-# skip connection
-sent_added = SkipConnection()([sent_att_vec_dr, sent_wv_dr])
-sent_encoder = Model(sent_ints, sent_added)
+sent_encoder = Model(sent_ints, sent_att_vec_dr)
 
-## self-attentive context
-sc_sent_wv_dr = Dropout(drop_rate)(sent_wv)
-sc_sent_wa = bidir_lstm(sc_sent_wv_dr, sc_n_units, is_GPU)
-# sc_sent_wa = bidir_lstm(sc_sent_wa, sc_n_units, is_GPU)
-sc_sent_att_vec, sc_word_att_coeffs = StructuredSelfAttentive(da=da, r=r, return_coefficients=True)(sc_sent_wa)
-sc_sent_att_vec_dr = Dropout(drop_rate)(sc_sent_att_vec)
-# skip connection
-sc_sent_added = SkipConnection()([sc_sent_att_vec_dr, sc_sent_wv_dr])
-sc_sent_encoder = Model(sent_ints, sc_sent_added)
+# encode all sentences for context
+context_doc_ints = Input(shape=(docs_train.shape[1], docs_train.shape[2],))
+sent_att_vecs_dr = TimeDistributed(sent_encoder)(context_doc_ints)
+context_encoder = Model(context_doc_ints, sent_att_vecs_dr)
 
-## combine context and target
+
+## sentence encoder with global context
+context_vecs = context_encoder(context_doc_ints)
+gc_sent_wv_dr = Dropout(drop_rate)(sent_wv)
+gc_sent_wa = bidir_gru(gc_sent_wv_dr, n_units, is_GPU)
+gc_sent_att_vec, gc_word_att_coeffs = AttentionWithGlobalContext(return_coefficients=True)([gc_sent_wa, context_vecs])
+gc_sent_att_vec_dr = Dropout(drop_rate)(gc_sent_att_vec)
+gc_sent_encoder = Model(sent_ints, gc_sent_att_vec_dr)
+
+## main structure
 doc_ints = Input(shape=(docs_train.shape[1], docs_train.shape[2],))
-# sentence encoder
-sent_att_vecs_dr = TimeDistributed(sent_encoder)(doc_ints)
-doc_sa = bidir_gru(sent_att_vecs_dr, n_units, is_GPU)
-# context
-sc_sent_att_vecs_dr = TimeDistributed(sc_sent_encoder)(doc_ints)
-sc_doc_sa = bidir_gru(sc_sent_att_vecs_dr, n_units, is_GPU)
-
-doc_att_vec, sent_att_coeffs = AttentionWithMultiContext(return_coefficients=True)([doc_sa, sc_doc_sa])
+gc_sent_att_vecs_dr = TimeDistributed(gc_sent_encoder)(doc_ints)
+doc_sa = bidir_gru(gc_sent_att_vecs_dr, n_units, is_GPU)
+doc_att_vec, sent_att_coeffs = AttentionWithContext(return_coefficients=True)(doc_sa)
 doc_att_vec_dr = Dropout(drop_rate)(doc_att_vec)
 
 preds = Dense(units=1)(doc_att_vec_dr)
@@ -134,7 +132,7 @@ early_stopping = EarlyStopping(monitor='val_loss',
                                 mode='min')
 
 # save model corresponding to best epoch
-checkpointer = ModelCheckpoint(filepath=path_to_data + 'model_mm' + str(tgt), 
+checkpointer = ModelCheckpoint(filepath=path_to_data + 'model_ss' + str(tgt), 
                                 verbose=1, 
                                 save_best_only=True,
                                 save_weights_only=True)
@@ -154,7 +152,7 @@ model.fit(docs_train,
 hist = model.history.history
 
 if save_history:
-    with open(path_to_data + 'model_history_mm' + str(tgt) + '.json', 'w') as file:
+    with open(path_to_data + 'model_history_ss' + str(tgt) + '.json', 'w') as file:
         json.dump(hist, file, sort_keys=False, indent=4)
 
 print('* * * * * * * target',tgt,'done * * * * * * *')    

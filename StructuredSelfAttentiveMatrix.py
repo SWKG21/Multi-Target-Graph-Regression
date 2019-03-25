@@ -5,7 +5,7 @@ from keras import initializers, regularizers, constraints
 from utils import *
     
 
-class StructuredSelfAttentive(Layer):
+class StructuredSelfAttentiveMatrix(Layer):
     """
     Example:
         model.add(LSTM(64, return_sequences=True))
@@ -33,7 +33,7 @@ class StructuredSelfAttentive(Layer):
         
         self.da = da
         self.r = r
-        super(StructuredSelfAttentive, self).__init__(**kwargs)
+        super(StructuredSelfAttentiveMatrix, self).__init__(**kwargs)
     
 
     def build(self, input_shape):
@@ -51,7 +51,7 @@ class StructuredSelfAttentive(Layer):
                                  regularizer=self.W_regularizer,
                                  constraint=self.W_constraint)
         
-        super(StructuredSelfAttentive, self).build(input_shape)
+        super(StructuredSelfAttentiveatrixM, self).build(input_shape)
     
 
     def call(self, x, mask=None):
@@ -75,9 +75,9 @@ class StructuredSelfAttentive(Layer):
         
         # sum by r, output a vector for each (batch_size, 2u)
         if self.return_coefficients:
-            return [K.sum(weighted_input, axis=1), a]
+            return [weighted_input, a]
         else:
-            return K.sum(weighted_input, axis=1)
+            return weighted_input
     
     
     def compute_output_shape(self, input_shape):

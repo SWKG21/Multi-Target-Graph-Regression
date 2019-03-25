@@ -14,8 +14,8 @@ from SkipConnection import SkipConnection
 
 
 """
-    sentence encoder: AttentionWithContext (first s in file name), add SkipConnection
-    document encoder: AttentionWithMultiContext, AttentionWithContext (second s in file name) for u
+    sentence encoder: AttentionWithContext (s in file name); AttentionWithContext (second s in file name); add SkipConnection
+    document encoder: AttentionWithMultiContext, second AttentionWithContext for u
 """
 
 
@@ -43,12 +43,12 @@ drop_rate = 0.3
 batch_size = 128
 nb_epochs = 100
 my_optimizer = 'adam'
-my_patience = 10
+my_patience = 4
 
 
 # = = = = = data loading = = = = =
 
-docs = np.load(path_to_data + 'documents_p2q_5.npy')
+docs = np.load(path_to_data + 'documents_p2q_5_50.npy')
 embeddings = np.load(path_to_data + 'embeddings_p2q_5.npy')
 
 with open(path_to_data + 'train_idxs.txt', 'r') as file:
@@ -120,7 +120,7 @@ sc_doc_sa = bidir_gru(sc_sent_att_vecs_dr, n_units, is_GPU)
 doc_att_vec, sent_att_coeffs = AttentionWithMultiContext(return_coefficients=True)([doc_sa, sc_doc_sa])
 doc_att_vec_dr = Dropout(drop_rate)(doc_att_vec)
 
-preds = Dense(units=1, activation='sigmoid')(doc_att_vec_dr)
+preds = Dense(units=1)(doc_att_vec_dr)
 model = Model(doc_ints, preds)
 
 model.compile(loss='mean_squared_error', optimizer=my_optimizer, metrics=['mae'])
@@ -134,7 +134,7 @@ early_stopping = EarlyStopping(monitor='val_loss',
                                 mode='min')
 
 # save model corresponding to best epoch
-checkpointer = ModelCheckpoint(filepath=path_to_data + 'model_sc' + str(tgt), 
+checkpointer = ModelCheckpoint(filepath=path_to_data + 'model_ss' + str(tgt), 
                                 verbose=1, 
                                 save_best_only=True,
                                 save_weights_only=True)
@@ -154,7 +154,7 @@ model.fit(docs_train,
 hist = model.history.history
 
 if save_history:
-    with open(path_to_data + 'model_history_sc' + str(tgt) + '.json', 'w') as file:
+    with open(path_to_data + 'model_history_ss' + str(tgt) + '.json', 'w') as file:
         json.dump(hist, file, sort_keys=False, indent=4)
 
 print('* * * * * * * target',tgt,'done * * * * * * *')    

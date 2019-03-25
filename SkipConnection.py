@@ -71,7 +71,7 @@ class SkipConnection(Layer):
         original = xs[1]
         original = K.sum(original, axis=1)
         modif = dot_product(original, self.W)
-
+        
         if self.bias:
             modif += self.b
         

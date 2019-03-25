@@ -14,8 +14,8 @@ from SkipConnection import SkipConnection
 
 
 """
-    sentence encoder: StructuredSelfAttentive (first m in file name); StructuredSelfAttentive (second m in file name); add SkipConnection
-    document encoder: AttentionWithMultiContext, second StructuredSelfAttentive for u
+    sentence encoder: AttentionWithContext (s in file name); AttentionWithContext (second s in file name); add SkipConnection
+    document encoder: AttentionWithMultiContext, second AttentionWithContext for u
 """
 
 
@@ -67,7 +67,7 @@ val_idxs = [train_idxs[elt] for elt in idxs_select_val]
 docs_train = docs[train_idxs_new,:,:]
 docs_val = docs[val_idxs,:,:]
 
-tgt = 0
+tgt = 2
 
 with open(path_to_data + 'targets/train/target_' + str(tgt) + '.txt', 'r') as file:
     target = file.read().splitlines()
@@ -92,7 +92,7 @@ sent_wv = Embedding(input_dim=embeddings.shape[0],
 sent_wv_dr = Dropout(drop_rate)(sent_wv)
 sent_wa = bidir_gru(sent_wv_dr, n_units, is_GPU)
 # sent_wa = bidir_gru(sent_wa, n_units, is_GPU)
-sent_att_vec, word_att_coeffs = StructuredSelfAttentive(da=da, r=r, return_coefficients=True)(sent_wa)
+sent_att_vec, word_att_coeffs = AttentionWithContext(return_coefficients=True)(sent_wa)
 sent_att_vec_dr = Dropout(drop_rate)(sent_att_vec)
 # skip connection
 sent_added = SkipConnection()([sent_att_vec_dr, sent_wv_dr])
@@ -102,7 +102,7 @@ sent_encoder = Model(sent_ints, sent_added)
 sc_sent_wv_dr = Dropout(drop_rate)(sent_wv)
 sc_sent_wa = bidir_lstm(sc_sent_wv_dr, sc_n_units, is_GPU)
 # sc_sent_wa = bidir_lstm(sc_sent_wa, sc_n_units, is_GPU)
-sc_sent_att_vec, sc_word_att_coeffs = StructuredSelfAttentive(da=da, r=r, return_coefficients=True)(sc_sent_wa)
+sc_sent_att_vec, sc_word_att_coeffs = AttentionWithContext(return_coefficients=True)(sc_sent_wa)
 sc_sent_att_vec_dr = Dropout(drop_rate)(sc_sent_att_vec)
 # skip connection
 sc_sent_added = SkipConnection()([sc_sent_att_vec_dr, sc_sent_wv_dr])
@@ -134,7 +134,7 @@ early_stopping = EarlyStopping(monitor='val_loss',
                                 mode='min')
 
 # save model corresponding to best epoch
-checkpointer = ModelCheckpoint(filepath=path_to_data + 'model_mm' + str(tgt), 
+checkpointer = ModelCheckpoint(filepath=path_to_data + 'model_ss' + str(tgt), 
                                 verbose=1, 
                                 save_best_only=True,
                                 save_weights_only=True)
@@ -154,7 +154,7 @@ model.fit(docs_train,
 hist = model.history.history
 
 if save_history:
-    with open(path_to_data + 'model_history_mm' + str(tgt) + '.json', 'w') as file:
+    with open(path_to_data + 'model_history_ss' + str(tgt) + '.json', 'w') as file:
         json.dump(hist, file, sort_keys=False, indent=4)
 
 print('* * * * * * * target',tgt,'done * * * * * * *')    
