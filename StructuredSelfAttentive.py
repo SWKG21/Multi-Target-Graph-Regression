@@ -55,7 +55,9 @@ class StructuredSelfAttentive(Layer):
     
 
     def call(self, x, mask=None):
-        ait = dot_product(K.tanh(dot_product(x, self.W_s1)), self.W_s2)
+        # u in paper == mc_n_units here
+        # x shape (batch_size, sent_len, 2u)
+        ait = dot_product(K.tanh(dot_product(x, self.W_s1)), self.W_s2)  # (batch_size, sent_len, r)
         a = K.exp(ait)
 
         # apply mask after the exp. will be re-normalized next
@@ -68,9 +70,10 @@ class StructuredSelfAttentive(Layer):
         # a /= K.cast(K.sum(a, axis=1, keepdims=True), K.floatx())
         a /= K.cast(K.sum(a, axis=1, keepdims=True) + K.epsilon(), K.floatx())
         
-        a = K.permute_dimensions(a, (0, 2, 1))
-        weighted_input = K.batch_dot(a, x)
-
+        a = K.permute_dimensions(a, (0, 2, 1))  # (batch_size, r, sent_len)
+        weighted_input = K.batch_dot(a, x)  # (batch_size, r, 2u)
+        
+        # sum by r, output a vector for each (batch_size, 2u)
         if self.return_coefficients:
             return [K.sum(weighted_input, axis=1), a]
         else:

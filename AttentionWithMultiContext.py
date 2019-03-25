@@ -33,8 +33,9 @@ class AttentionWithMultiContext(AttentionWithContext):
 
     
     def call(self, xs, mask=None):
-        x = xs[0]
-        u = K.mean(xs[1], axis=1)
+        x = xs[0]  # (batch_size, doc_len, 2*n_units)
+        # xs[1] with (batch_size, doc_len, 2*n_units)
+        u = K.mean(xs[1], axis=1)  # (batch_size, 2*n_units)
         uit = dot_product(x, self.W)
         
         if self.bias:
@@ -55,8 +56,9 @@ class AttentionWithMultiContext(AttentionWithContext):
         a /= K.cast(K.sum(a, axis=1, keepdims=True) + K.epsilon(), K.floatx())
 
         a = K.expand_dims(a)
-        weighted_input = x * a
-
+        weighted_input = x * a  # (batch_size, doc_len, 2*n_units)
+        
+        # sum by doc_len, output shape (batch_size, 2*n_units)
         if self.return_coefficients:
             return [K.sum(weighted_input, axis=1), a]
         else:

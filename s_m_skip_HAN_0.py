@@ -13,15 +13,20 @@ from AttentionWithMultiContext import AttentionWithMultiContext
 from SkipConnection import SkipConnection
 
 
+"""
+    sentence encoder: AttwntionWithContext (s in file name), add SkipConnection
+    document encoder: AttentionWithMultiContext, StrcuturedSelfAttentive (m in file name) for u
+"""
+
 # = = = = = = = = = = = = = = =
 
-is_GPU = True
+is_GPU = False
 save_weights = True
 save_history = True
 
-path_root = ''
+path_root = '..'
 path_to_code = path_root + '/code/'
-path_to_data = path_root + 'data/'
+path_to_data = path_root + '/data/'
 
 sys.path.insert(0, path_to_code)
 
@@ -29,15 +34,15 @@ sys.path.insert(0, path_to_code)
 
 # = = = = = hyper-parameters = = = = =
 
-n_units = 60
-mc_n_units = 100
-da = 20
-r = 15
-drop_rate = 0.5
+n_units = 30
+mc_n_units = 50
+da = 15
+r = 10
+drop_rate = 0.3
 batch_size = 128
 nb_epochs = 100
 my_optimizer = 'adam'
-my_patience = 5
+my_patience = 10
 
 
 # = = = = = data loading = = = = =
@@ -85,7 +90,7 @@ sent_wv = Embedding(input_dim=embeddings.shape[0],
 ## HAN sent encoder
 sent_wv_dr = Dropout(drop_rate)(sent_wv)
 sent_wa = bidir_gru(sent_wv_dr, n_units, is_GPU)
-# sent_wa = bidir_gru(sent_wa, n_units, is_GPU)
+sent_wa = bidir_gru(sent_wa, n_units, is_GPU)
 sent_att_vec, word_att_coeffs = AttentionWithContext(return_coefficients=True)(sent_wa)
 sent_att_vec_dr = Dropout(drop_rate)(sent_att_vec)
 # skip connection
@@ -95,7 +100,7 @@ sent_encoder = Model(sent_ints, sent_added)
 ## structured self-attentive
 mc_sent_wv_dr = Dropout(drop_rate)(sent_wv)
 mc_sent_wa = bidir_lstm(mc_sent_wv_dr, mc_n_units, is_GPU)
-# mc_sent_wa = bidir_lstm(mc_sent_wa, mc_n_units, is_GPU)
+mc_sent_wa = bidir_lstm(mc_sent_wa, mc_n_units, is_GPU)
 mc_sent_att_vec, mc_word_att_coeffs = StructuredSelfAttentive(da=da, r=r, return_coefficients=True)(mc_sent_wa)
 mc_sent_att_vec_dr = Dropout(drop_rate)(mc_sent_att_vec)
 # skip connection
@@ -148,7 +153,7 @@ model.fit(docs_train,
 hist = model.history.history
 
 if save_history:
-    with open(path_to_data + 'model_history_sc' + str(tgt) + '_sc.json', 'w') as file:
+    with open(path_to_data + 'model_history_sc' + str(tgt) + '.json', 'w') as file:
         json.dump(hist, file, sort_keys=False, indent=4)
 
 print('* * * * * * * target',tgt,'done * * * * * * *')    
