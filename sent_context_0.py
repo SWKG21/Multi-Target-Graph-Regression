@@ -5,7 +5,7 @@ import numpy as np
 from keras.backend import concatenate
 from keras.callbacks import EarlyStopping, ModelCheckpoint
 from keras.models import Model
-from keras.layers import Input, Embedding, Dropout, TimeDistributed, Dense, Add, add, Lambda, Reshape
+from keras.layers import Input, Embedding, Dropout, TimeDistributed, Dense, Add, add, Lambda, Reshape, Concatenate
 
 from utils import *
 from AttentionWithContext import AttentionWithContext
@@ -74,7 +74,7 @@ target_train = np.array([target[elt] for elt in idxs_select_train]).astype('floa
 target_val = np.array([target[elt] for elt in idxs_select_val]).astype('float')
 
 print('data loaded')
-print (docs_train.shape)
+
 # = = = = = defining architecture = = = = =
 
 ## sent encoder for context
@@ -87,7 +87,6 @@ sent_wv = Embedding(input_dim=embeddings.shape[0],
                     )(sent_ints)
 sent_wv_dr = Dropout(drop_rate)(sent_wv)
 sent_wa = bidir_gru(sent_wv_dr, n_units, is_GPU)
-print ('context sent encoder', sent_wa.shape)
 sent_att_vec, word_att_coeffs = AttentionWithContext(return_coefficients=True)(sent_wa)
 sent_att_vec_dr = Dropout(drop_rate)(sent_att_vec)
 sent_encoder = Model(sent_ints, sent_att_vec_dr)
@@ -95,31 +94,24 @@ sent_encoder = Model(sent_ints, sent_att_vec_dr)
 # context encoder
 context_ints = Input(shape=(docs_train.shape[2]-1, docs_train.shape[3],))
 sent_att_vecs_dr = TimeDistributed(sent_encoder)(context_ints)
-print ('context encoder', sent_att_vecs_dr.shape)
-print (type(context_ints), type(sent_att_vecs_dr))
 context_encoder = Model(context_ints, sent_att_vecs_dr)
 
 ## sentence encoder with context
-# sent_context_ints = Input(shape=(docs_train.shape[2], docs_train.shape[3],))
-sent_ints_re = Reshape((1, docs_train.shape[3],))(sent_ints)
-sent_context_ints = concatenate([sent_ints_re, context_ints], axis=1)
+sent_context_ints = Input(shape=(docs_train.shape[2], docs_train.shape[3],))
+sent_ints2 = Lambda(lambda x: x[:, 0, :])(sent_context_ints)
+context_ints2 = Lambda(lambda x: x[:, 1:, :])(sent_context_ints)
 sent_wv2 = Embedding(input_dim=embeddings.shape[0],
                     output_dim=embeddings.shape[1],
                     weights=[embeddings],
                     input_length=docs_train.shape[3],
                     trainable=False,
-                    )(sent_context_ints[:, 0, :])
+                    )(sent_ints2)
 gc_sent_wv_dr = Dropout(drop_rate)(sent_wv2)
 gc_sent_wa = bidir_gru(gc_sent_wv_dr, n_units, is_GPU)
-context_vecs = context_encoder(sent_context_ints[:, 1:, :])
-print ('before sent encoder')
-print ('sent', gc_sent_wa.shape)
-print ('context vecs', context_vecs.shape)
+context_vecs = context_encoder(context_ints2)
 gc_sent_att_vec, gc_word_att_coeffs = SentContextAttention(return_coefficients=True)([gc_sent_wa, context_vecs])
-print ('after sent context attention', gc_sent_att_vec.shape)
 gc_sent_att_vec_dr = Dropout(drop_rate)(gc_sent_att_vec)
-print (type(sent_context_ints), type(gc_sent_att_vec_dr))
-gc_sent_encoder = Model(context_ints, context_vecs)  # bug here, for both 2 ways
+gc_sent_encoder = Model(sent_context_ints, gc_sent_att_vec_dr)
 
 ## doc encoder
 doc_ints = Input(shape=(docs_train.shape[1], docs_train.shape[2], docs_train.shape[3],))
@@ -142,7 +134,7 @@ early_stopping = EarlyStopping(monitor='val_loss',
                                 mode='min')
 
 # save model corresponding to best epoch
-checkpointer = ModelCheckpoint(filepath=path_to_data + 'model_ss' + str(tgt), 
+checkpointer = ModelCheckpoint(filepath=path_to_data + 'model_context' + str(tgt), 
                                 verbose=1, 
                                 save_best_only=True,
                                 save_weights_only=True)
@@ -162,7 +154,7 @@ model.fit(docs_train,
 hist = model.history.history
 
 if save_history:
-    with open(path_to_data + 'model_history_ss' + str(tgt) + '.json', 'w') as file:
+    with open(path_to_data + 'model_history_context' + str(tgt) + '.json', 'w') as file:
         json.dump(hist, file, sort_keys=False, indent=4)
 
 print('* * * * * * * target',tgt,'done * * * * * * *')    

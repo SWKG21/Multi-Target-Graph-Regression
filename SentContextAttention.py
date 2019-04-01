@@ -54,10 +54,10 @@ class SentContextAttention(AttentionWithContext):
         ait = K.batch_dot(uit, u)  # use batch_dot rather dot_product because u shape (?, 2*n_units), self.u shape (2*n_units,)
         a = K.exp(ait)
         
-        # apply mask after the exp. will be re-normalized next
-        if mask is not None:
-            # Cast the mask to floatX to avoid float64 upcasting in theano
-            a *= K.cast(mask, K.floatx())
+        # # apply mask after the exp. will be re-normalized next
+        # if mask is not None:
+        #     # Cast the mask to floatX to avoid float64 upcasting in theano
+        #     a *= K.cast(mask, K.floatx())
         
         # in some cases especially in the early stages of training the sum may be almost zero
         # and this results in NaN's. A workaround is to add a very small positive number ε to the sum.
