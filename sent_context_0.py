@@ -10,14 +10,13 @@ from keras.layers import Input, Embedding, Dropout, TimeDistributed, Dense, Add,
 from utils import *
 from AttentionWithContext import AttentionWithContext
 from StructuredSelfAttentive import StructuredSelfAttentive
-from AttentionWithMultiContext import AttentionWithMultiContext
+from SentContextAttention import SentContextAttention
 from SkipConnection import SkipConnection
-from AttentionWithGlobalContext import AttentionWithGlobalContext
 
 
 """
-    sentence encoder: AttentionWithContext (first s in file name), add SkipConnection
-    document encoder: AttentionWithMultiContext, AttentionWithContext (second s in file name) for u
+    sentence encoder: SentContextAttention, add SkipConnection
+    document encoder: AttentionWithContext
 """
 
 
@@ -38,9 +37,6 @@ sys.path.insert(0, path_to_code)
 # = = = = = hyper-parameters = = = = =
 
 n_units = 30
-gc_n_units = 40
-da = 15
-r = 10
 drop_rate = 0.3
 batch_size = 128
 nb_epochs = 100
@@ -50,7 +46,7 @@ my_patience = 4
 
 # = = = = = data loading = = = = =
 
-docs = np.load(path_to_data + 'documents_p2q_5_50.npy')
+docs = np.load(path_to_data + 'contextual6_documents_p2q_5_50.npy')
 embeddings = np.load(path_to_data + 'embeddings_p2q_5.npy')
 
 with open(path_to_data + 'train_idxs.txt', 'r') as file:
@@ -81,38 +77,52 @@ print('data loaded')
 print (docs_train.shape)
 # = = = = = defining architecture = = = = =
 
-sent_ints = Input(shape=(docs_train.shape[2],))
-
+## sent encoder for context
+sent_ints = Input(shape=(docs_train.shape[3],))
 sent_wv = Embedding(input_dim=embeddings.shape[0],
                     output_dim=embeddings.shape[1],
                     weights=[embeddings],
-                    input_length=docs_train.shape[2],
+                    input_length=docs_train.shape[3],
                     trainable=False,
                     )(sent_ints)
-
-## HAN sent encoder for context
 sent_wv_dr = Dropout(drop_rate)(sent_wv)
 sent_wa = bidir_gru(sent_wv_dr, n_units, is_GPU)
+print ('context sent encoder', sent_wa.shape)
 sent_att_vec, word_att_coeffs = AttentionWithContext(return_coefficients=True)(sent_wa)
 sent_att_vec_dr = Dropout(drop_rate)(sent_att_vec)
 sent_encoder = Model(sent_ints, sent_att_vec_dr)
 
-# encode all sentences for context
-context_doc_ints = Input(shape=(docs_train.shape[1], docs_train.shape[2],))
-sent_att_vecs_dr = TimeDistributed(sent_encoder)(context_doc_ints)
-context_encoder = Model(context_doc_ints, sent_att_vecs_dr)
+# context encoder
+context_ints = Input(shape=(docs_train.shape[2]-1, docs_train.shape[3],))
+sent_att_vecs_dr = TimeDistributed(sent_encoder)(context_ints)
+print ('context encoder', sent_att_vecs_dr.shape)
+print (type(context_ints), type(sent_att_vecs_dr))
+context_encoder = Model(context_ints, sent_att_vecs_dr)
 
-
-## sentence encoder with global context
-context_vecs = context_encoder(context_doc_ints)
-gc_sent_wv_dr = Dropout(drop_rate)(sent_wv)
+## sentence encoder with context
+# sent_context_ints = Input(shape=(docs_train.shape[2], docs_train.shape[3],))
+sent_ints_re = Reshape((1, docs_train.shape[3],))(sent_ints)
+sent_context_ints = concatenate([sent_ints_re, context_ints], axis=1)
+sent_wv2 = Embedding(input_dim=embeddings.shape[0],
+                    output_dim=embeddings.shape[1],
+                    weights=[embeddings],
+                    input_length=docs_train.shape[3],
+                    trainable=False,
+                    )(sent_context_ints[:, 0, :])
+gc_sent_wv_dr = Dropout(drop_rate)(sent_wv2)
 gc_sent_wa = bidir_gru(gc_sent_wv_dr, n_units, is_GPU)
-gc_sent_att_vec, gc_word_att_coeffs = AttentionWithGlobalContext(return_coefficients=True)([gc_sent_wa, context_vecs])
+context_vecs = context_encoder(sent_context_ints[:, 1:, :])
+print ('before sent encoder')
+print ('sent', gc_sent_wa.shape)
+print ('context vecs', context_vecs.shape)
+gc_sent_att_vec, gc_word_att_coeffs = SentContextAttention(return_coefficients=True)([gc_sent_wa, context_vecs])
+print ('after sent context attention', gc_sent_att_vec.shape)
 gc_sent_att_vec_dr = Dropout(drop_rate)(gc_sent_att_vec)
-gc_sent_encoder = Model(sent_ints, gc_sent_att_vec_dr)
+print (type(sent_context_ints), type(gc_sent_att_vec_dr))
+gc_sent_encoder = Model(context_ints, context_vecs)  # bug here, for both 2 ways
 
-## main structure
-doc_ints = Input(shape=(docs_train.shape[1], docs_train.shape[2],))
+## doc encoder
+doc_ints = Input(shape=(docs_train.shape[1], docs_train.shape[2], docs_train.shape[3],))
 gc_sent_att_vecs_dr = TimeDistributed(gc_sent_encoder)(doc_ints)
 doc_sa = bidir_gru(gc_sent_att_vecs_dr, n_units, is_GPU)
 doc_att_vec, sent_att_coeffs = AttentionWithContext(return_coefficients=True)(doc_sa)

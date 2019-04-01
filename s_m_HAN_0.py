@@ -9,12 +9,12 @@ from keras.layers import Input, Embedding, Dropout, TimeDistributed, Dense
 from utils import *
 from AttentionWithContext import AttentionWithContext
 from StructuredSelfAttentive import StructuredSelfAttentive
-from AttentionWithMultiContext import AttentionWithMultiContext
+from DocStructuredAttention import DocStructuredAttention
 
 
 """
     sentence encoder: AttentionWithContext (s in file name); StructuredSelfAttentive (m in file name);
-    document encoder: AttentionWithMultiContext, StructuredSelfAttentive for u
+    document encoder: DocStructuredAttention, StructuredSelfAttentive for u
 """
 
 # = = = = = = = = = = = = = = =
@@ -108,7 +108,7 @@ doc_sa = bidir_gru(sent_att_vecs_dr, n_units, is_GPU)
 mc_sent_att_vecs_dr = TimeDistributed(mc_sent_encoder)(doc_ints)
 mc_doc_sa = bidir_gru(mc_sent_att_vecs_dr, n_units, is_GPU)
 
-doc_att_vec, sent_att_coeffs = AttentionWithMultiContext(return_coefficients=True)([doc_sa, mc_doc_sa])
+doc_att_vec, sent_att_coeffs = DocStructuredAttention(return_coefficients=True)([doc_sa, mc_doc_sa])
 doc_att_vec_dr = Dropout(drop_rate)(doc_att_vec)
 
 preds = Dense(units=1, activation='sigmoid')(doc_att_vec_dr)

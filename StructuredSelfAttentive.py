@@ -3,7 +3,11 @@ from keras.layers import Layer
 from keras import initializers, regularizers, constraints
 
 from utils import *
-    
+
+
+"""
+    Like AttentionWithContext, for sentence encoder, input: word vectors, output: sentence vector
+"""
 
 class StructuredSelfAttentive(Layer):
     """

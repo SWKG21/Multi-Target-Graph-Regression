@@ -36,7 +36,7 @@ sys.path.insert(0, path_to_code)
 
 n_units = 60
 mc_n_units = 100
-da = 15
+da = 30
 r = 10
 drop_rate = 0.3
 batch_size = 128
@@ -66,7 +66,7 @@ val_idxs = [train_idxs[elt] for elt in idxs_select_val]
 docs_train = docs[train_idxs_new,:,:]
 docs_val = docs[val_idxs,:,:]
 
-tgt = 2
+tgt = 1
 
 with open(path_to_data + 'targets/train/target_' + str(tgt) + '.txt', 'r') as file:
     target = file.read().splitlines()
@@ -87,11 +87,10 @@ sent_wv = Embedding(input_dim=embeddings.shape[0],
                     trainable=False,
                     )(sent_ints)
 
-## sent encoder
+## HAN sent encoder
 sent_wv_dr = Dropout(drop_rate)(sent_wv)
 sent_wa = bidir_gru(sent_wv_dr, n_units, is_GPU)
 sent_wa = bidir_gru(sent_wa, n_units, is_GPU)
-# sent_wa = bidir_gru(sent_wa, n_units, is_GPU)
 sent_att_vec, word_att_coeffs = AttentionWithContext(return_coefficients=True)(sent_wa)
 sent_att_vec_dr = Dropout(drop_rate)(sent_att_vec)
 # skip connection
@@ -102,23 +101,20 @@ sent_encoder = Model(sent_ints, sent_added)
 mc_sent_wv_dr = Dropout(drop_rate)(sent_wv)
 mc_sent_wa = bidir_lstm(mc_sent_wv_dr, mc_n_units, is_GPU)
 mc_sent_wa = bidir_lstm(mc_sent_wa, mc_n_units, is_GPU)
-# mc_sent_wa = bidir_lstm(mc_sent_wa, mc_n_units, is_GPU)
 mc_sent_att_vec, mc_word_att_coeffs = StructuredSelfAttentive(da=da, r=r, return_coefficients=True)(mc_sent_wa)
 mc_sent_att_vec_dr = Dropout(drop_rate)(mc_sent_att_vec)
 # skip connection
 mc_sent_added = SkipConnection()([mc_sent_att_vec_dr, mc_sent_wv_dr])
 mc_sent_encoder = Model(sent_ints, mc_sent_added)
 
-## doc encoder: combine context and target
+## combine context and target
 doc_ints = Input(shape=(docs_train.shape[1], docs_train.shape[2],))
 # sentence encoder
 sent_att_vecs_dr = TimeDistributed(sent_encoder)(doc_ints)
 doc_sa = bidir_gru(sent_att_vecs_dr, n_units, is_GPU)
-doc_sa = bidir_gru(doc_sa, n_units, is_GPU)
 # context
 mc_sent_att_vecs_dr = TimeDistributed(mc_sent_encoder)(doc_ints)
 mc_doc_sa = bidir_gru(mc_sent_att_vecs_dr, n_units, is_GPU)
-mc_doc_sa = bidir_gru(mc_doc_sa, n_units, is_GPU)
 
 doc_att_vec, sent_att_coeffs = DocStructuredAttention(return_coefficients=True)([doc_sa, mc_doc_sa])
 doc_att_vec_dr = Dropout(drop_rate)(doc_att_vec)
@@ -137,7 +133,7 @@ early_stopping = EarlyStopping(monitor='val_loss',
                                 mode='min')
 
 # save model corresponding to best epoch
-checkpointer = ModelCheckpoint(filepath=path_to_data + 'model_sm_2l2l' + str(tgt), 
+checkpointer = ModelCheckpoint(filepath=path_to_data + 'model_sm' + str(tgt), 
                                 verbose=1, 
                                 save_best_only=True,
                                 save_weights_only=True)
@@ -157,7 +153,7 @@ model.fit(docs_train,
 hist = model.history.history
 
 if save_history:
-    with open(path_to_data + 'model_history_sm_2l2l' + str(tgt) + '.json', 'w') as file:
+    with open(path_to_data + 'model_history_sm' + str(tgt) + '.json', 'w') as file:
         json.dump(hist, file, sort_keys=False, indent=4)
 
 print('* * * * * * * target',tgt,'done * * * * * * *')    

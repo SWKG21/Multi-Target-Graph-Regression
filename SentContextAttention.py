@@ -4,13 +4,22 @@ from keras import initializers, regularizers, constraints
 
 from utils import *
 from AttentionWithContext import *
-    
 
-class AttentionWithMultiContext(AttentionWithContext):
+
+"""
+    For sentence encoder, 
+    input: 
+        x == word vectors;
+        u == mean of contextual sentence vectors from AttentionWithContext;
+    output: 
+        sent vector
+"""
+
+class SentContextAttention(AttentionWithContext):
     """
     Example:
         model.add(LSTM(64, return_sequences=True))
-        model.add(AttentionWithMultiContext())
+        model.add(SentContextAttention())
         # next add a Dense layer (for classification/regression) or whatever...
     """
     
@@ -33,8 +42,8 @@ class AttentionWithMultiContext(AttentionWithContext):
 
     
     def call(self, xs, mask=None):
-        x = xs[0]  # (batch_size, doc_len, 2*n_units)
-        # xs[1] with (batch_size, doc_len, 2*n_units)
+        x = xs[0]  # (batch_size, sent_len, 2*n_units)
+        # xs[1] with (batch_size, window_size, 2*n_units)
         u = K.mean(xs[1], axis=1)  # (batch_size, 2*n_units)
         uit = dot_product(x, self.W)
         
@@ -56,9 +65,9 @@ class AttentionWithMultiContext(AttentionWithContext):
         a /= K.cast(K.sum(a, axis=1, keepdims=True) + K.epsilon(), K.floatx())
 
         a = K.expand_dims(a)
-        weighted_input = x * a  # (batch_size, doc_len, 2*n_units)
+        weighted_input = x * a  # (batch_size, sent_len, 2*n_units)
         
-        # sum by doc_len, output shape (batch_size, 2*n_units)
+        # sum by sent_len, output shape (batch_size, 2*n_units)
         if self.return_coefficients:
             return [K.sum(weighted_input, axis=1), a]
         else:

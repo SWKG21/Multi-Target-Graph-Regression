@@ -7,6 +7,9 @@ from keras.layers import Input, Embedding, Dropout, TimeDistributed, Dense
 
 from utils import *
 from AttentionWithContext import AttentionWithContext
+from StructuredSelfAttentive import StructuredSelfAttentive
+from AttentionWithMultiContext import AttentionWithMultiContext
+from SkipConnection import SkipConnection
 
 
 # = = = = = = = = = = = = = = =
@@ -20,8 +23,8 @@ sys.path.insert(0, path_to_code)
 
 # = = = = = = = = = = = = = = =
 
-docs = np.load(path_to_data + 'documents.npy')
-embeddings = np.load(path_to_data + 'embeddings_relabel.npy')
+docs = np.load(path_to_data + 'documents_p2q_5_50.npy')
+embeddings = np.load(path_to_data + 'embeddings_p2q_5.npy')
 
 with open(path_to_data + 'train_idxs.txt', 'r') as file:
     train_idxs = file.read().splitlines()
@@ -36,11 +39,11 @@ docs_test = docs[test_idxs,:,:]
 
 # = = = = = TRAINING RESULTS = = = = = 
 
-tgt = 0
+tgt = 3
     
 print('* * * * * * *',tgt,'* * * * * * *')
 
-with open(path_to_data + '/model_history_' + str(tgt) + '.json', 'r') as file:
+with open(path_to_data + '/model_history_sm' + str(tgt) + '.json', 'r') as file:
     hist = json.load(file)
 
 val_mse = hist['val_loss']
@@ -58,7 +61,10 @@ print('best val MAE',round(min_val_mae,3))
 # = = = = = PREDICTIONS = = = = =     
 
 # relevant hyper-parameters
-n_units = 50
+n_units = 60
+mc_n_units = 100
+da = 30
+r = 10
 drop_rate = 0 # prediction mode
 
 sent_ints = Input(shape=(docs_test.shape[2],))
@@ -70,21 +76,28 @@ sent_wv = Embedding(input_dim=embeddings.shape[0],
                     trainable=False,
                     )(sent_ints)
 
-# HAN sent encoder
+## HAN sent encoder
 sent_wv_dr = Dropout(drop_rate)(sent_wv)
 sent_wa = bidir_gru(sent_wv_dr, n_units, is_GPU)
+sent_wa = bidir_gru(sent_wa, n_units, is_GPU)
 sent_att_vec, word_att_coeffs = AttentionWithContext(return_coefficients=True)(sent_wa)
-sent_att_vec_dr = Dropout(drop_rate)(sent_att_vec)                      
-sent_encoder = Model(sent_ints, sent_att_vec_dr)
+sent_att_vec_dr = Dropout(drop_rate)(sent_att_vec)
+# skip connection
+sent_added = SkipConnection()([sent_att_vec_dr, sent_wv_dr])
+sent_encoder = Model(sent_ints, sent_added)
 
-# structured self-attentive
+## structured self-attentive
 mc_sent_wv_dr = Dropout(drop_rate)(sent_wv)
 mc_sent_wa = bidir_lstm(mc_sent_wv_dr, mc_n_units, is_GPU)
+mc_sent_wa = bidir_lstm(mc_sent_wa, mc_n_units, is_GPU)
 mc_sent_att_vec, mc_word_att_coeffs = StructuredSelfAttentive(da=da, r=r, return_coefficients=True)(mc_sent_wa)
-mc_sent_att_vec_dr = Dropout(drop_rate)(mc_sent_att_vec)                      
-mc_sent_encoder = Model(sent_ints, mc_sent_att_vec_dr)
+mc_sent_att_vec_dr = Dropout(drop_rate)(mc_sent_att_vec)
+# skip connection
+mc_sent_added = SkipConnection()([mc_sent_att_vec_dr, mc_sent_wv_dr])
+mc_sent_encoder = Model(sent_ints, mc_sent_added)
 
-doc_ints = Input(shape=(docs_train.shape[1],docs_train.shape[2],))
+## combine context and target
+doc_ints = Input(shape=(docs_test.shape[1],docs_test.shape[2],))
 # sentence encoder
 sent_att_vecs_dr = TimeDistributed(sent_encoder)(doc_ints)
 doc_sa = bidir_gru(sent_att_vecs_dr, n_units, is_GPU)
@@ -95,14 +108,15 @@ mc_doc_sa = bidir_gru(mc_sent_att_vecs_dr, n_units, is_GPU)
 doc_att_vec, sent_att_coeffs = AttentionWithMultiContext(return_coefficients=True)([doc_sa, mc_doc_sa])
 doc_att_vec_dr = Dropout(drop_rate)(doc_att_vec)
 
-preds = Dense(units=1, activation='sigmoid')(doc_att_vec_dr)
+preds = Dense(units=1)(doc_att_vec_dr)
 model = Model(doc_ints, preds)
 
-model.load_weights(path_to_data + 'model_' + str(tgt))
+model.load_weights(path_to_data + 'model_sm' + str(tgt))
 
 preds = model.predict(docs_test).tolist()
+preds = [pred[0] for pred in preds]
 
-with open(path_to_data + 'predictions_0.txt', 'w') as file:
+with open(path_to_data + 'predictions_'+ str(tgt) +'.txt', 'w') as file:
     for pred in preds:
         pred = format(pred, '.7f')
         file.write(pred + '\n')
