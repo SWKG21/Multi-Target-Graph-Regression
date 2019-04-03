@@ -21,7 +21,7 @@ window_size = 6  # should be even
 
 # = = = = = data loading = = = = =
 
-docs = np.load(path_to_data + 'documents_p2q_5_50.npy')
+docs = np.load(path_to_data + 'documents_p2q_5_new.npy')
 new_docs = np.zeros((docs.shape[0], docs.shape[1], 1+window_size, docs.shape[2]))
 print (docs.shape)
 
@@ -46,4 +46,4 @@ for i in range(docs.shape[0]):
     if i % 10000 == 0:
         print (i, 'finished')
 
-np.save(path_to_data + 'contextual'+ str(window_size) +'_documents_p2q_5_50.npy', new_docs, allow_pickle=False)
+np.save(path_to_data + 'contextual'+ str(window_size) +'_documents_p2q_5_new.npy', new_docs, allow_pickle=False)

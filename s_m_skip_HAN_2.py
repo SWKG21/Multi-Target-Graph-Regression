@@ -38,17 +38,20 @@ n_units = 60
 mc_n_units = 100
 da = 15
 r = 10
-drop_rate = 0.3
+drop_rate = 0.6
 batch_size = 128
-nb_epochs = 100
+nb_epochs = 200
 my_optimizer = 'adam'
-my_patience = 4
+my_patience = 10
 
 
 # = = = = = data loading = = = = =
 
-docs = np.load(path_to_data + 'documents_p2q_5_50.npy')
-embeddings = np.load(path_to_data + 'embeddings_p2q_5.npy')
+docs = np.load(path_to_data + 'documents_p2q_5_wl10.npy')
+embeddings = np.load(path_to_data + 'embeddings_p2q_5_wl10.npy')
+features = np.load(path_to_data + 'node_features.npy')
+embeddings = np.concatenate((embeddings, features), axis=1)
+embeddings[-1, :] = 0
 
 with open(path_to_data + 'train_idxs.txt', 'r') as file:
     train_idxs = file.read().splitlines()
@@ -98,6 +101,7 @@ sent_att_vec_dr = Dropout(drop_rate)(sent_att_vec)
 sent_added = SkipConnection()([sent_att_vec_dr, sent_wv_dr])
 sent_encoder = Model(sent_ints, sent_added)
 
+
 ## structured self-attentive
 mc_sent_wv_dr = Dropout(drop_rate)(sent_wv)
 mc_sent_wa = bidir_lstm(mc_sent_wv_dr, mc_n_units, is_GPU)
@@ -108,6 +112,7 @@ mc_sent_att_vec_dr = Dropout(drop_rate)(mc_sent_att_vec)
 # skip connection
 mc_sent_added = SkipConnection()([mc_sent_att_vec_dr, mc_sent_wv_dr])
 mc_sent_encoder = Model(sent_ints, mc_sent_added)
+
 
 ## doc encoder: combine context and target
 doc_ints = Input(shape=(docs_train.shape[1], docs_train.shape[2],))

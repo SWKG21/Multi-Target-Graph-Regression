@@ -26,15 +26,15 @@ class SentContextAttention(AttentionWithContext):
     def build(self, input_shapes):
         assert len(input_shapes[0]) == 3
         assert len(input_shapes[1]) == 3
-        input_shape = input_shapes[0]
+        # input_shape = input_shapes[0]
         
-        self.W = self.add_weight((input_shape[-1], input_shape[-1],),
+        self.W = self.add_weight((input_shapes[1][-1], input_shapes[0][-1],),
                                  initializer=self.init,
                                  name='{}_W'.format(self.name),
                                  regularizer=self.W_regularizer,
                                  constraint=self.W_constraint)
         if self.bias:
-            self.b = self.add_weight((input_shape[-1],),
+            self.b = self.add_weight((input_shapes[1][-1],),
                                      initializer='zero',
                                      name='{}_b'.format(self.name),
                                      regularizer=self.b_regularizer,
@@ -45,14 +45,15 @@ class SentContextAttention(AttentionWithContext):
         x = xs[0]  # (batch_size, sent_len, 2*n_units)
         # xs[1] with (batch_size, window_size, 2*n_units)
         u = K.mean(xs[1], axis=1)  # (batch_size, 2*n_units)
-        uit = dot_product(x, self.W)
+        uit = dot_product(x, self.W)  # (batch_size, sent_len, 2*n_units)
         
         if self.bias:
             uit += self.b
         
-        uit = K.tanh(uit)
-        ait = K.batch_dot(uit, u)  # use batch_dot rather dot_product because u shape (?, 2*n_units), self.u shape (2*n_units,)
-        a = K.exp(ait)
+        uit = K.tanh(uit)  # (batch_size, sent_len, 2*n_units)
+        # use batch_dot rather dot_product because u shape (?, 2*n_units), self.u shape (2*n_units,)
+        ait = K.batch_dot(uit, u)  # (batch_size, sent_len)
+        a = K.exp(ait)  # (batch_size, sent_len)
         
         # # apply mask after the exp. will be re-normalized next
         # if mask is not None:
@@ -63,8 +64,8 @@ class SentContextAttention(AttentionWithContext):
         # and this results in NaN's. A workaround is to add a very small positive number ε to the sum.
         # a /= K.cast(K.sum(a, axis=1, keepdims=True), K.floatx())
         a /= K.cast(K.sum(a, axis=1, keepdims=True) + K.epsilon(), K.floatx())
-
-        a = K.expand_dims(a)
+        
+        a = K.expand_dims(a)  # (batch_size, sent_len, 1)
         weighted_input = x * a  # (batch_size, sent_len, 2*n_units)
         
         # sum by sent_len, output shape (batch_size, 2*n_units)

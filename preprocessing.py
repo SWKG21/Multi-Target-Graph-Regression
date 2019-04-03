@@ -16,11 +16,11 @@ pad_vec_idx = 1685894
 parts = 4
 
 # node2vec walks parameters
-p = 0.5  # 1/p to go back
-q = 3  # 1/q to go out
+p = 2  # 1/p to go back
+q = 0.5  # 1/q to go out
 num_walks = 6
-min_walk_length = 5
-max_walk_length = 15
+min_walk_length = 10
+max_walk_length = 12
 
 # node2vec embedding parameters
 embedding_dim = 12
@@ -28,10 +28,10 @@ window_size = 5
 node_embed_scale = 10
 
 # maximum number of 'sentences' (walks) in each pseudo-document
-max_doc_size = 90
+max_doc_size = 50
 
 # WL relabeling iterations
-iterations = 5
+iterations = 10
 
 
 # = = = = = = = = = = = = = = =
@@ -52,51 +52,81 @@ for i in range(1, parts):
 generate_docs_embeddings(path_to_data, parts, edgelists[start:], embedding_dim, window_size, num_walks, min_walk_length, max_walk_length, p, q, pad_vec_idx, max_doc_size)
 
 # combine parts of documents
-concatenate_npy(path_to_data, 'documents', parts, 'documents_p0_5q3.npy')
+concatenate_npy(path_to_data, 'documents', parts, 'documents_p2q_5_new.npy')
 
 # combine parts of node embeddings
-concatenate_npy(path_to_data, 'node_embed', parts, 'node_embed_p0_5q3.npy')
+concatenate_npy(path_to_data, 'node_embed', parts, 'node_embed_p2q_5_new.npy')
 
 
-### -------------------- WL relabeling -------------------- ###
+### -------------------- WL relabeling & extra node features -------------------- ###
 
 # load graphs and nodes
 graphs = []
 nodes = []
+degrees = []
+degree_cens = []
+closeness_cens = []
+betweenness_cens = []
+current_flow_closeness_cens = []
+current_flow_betweenness_cens = []
+appro_current_flow_betweenness_cens = []
+cores = []
+pageranks = []
 for idx, edgelist in enumerate(edgelists):
-    g = nx.read_edgelist(path_to_data + 'edge_lists/' + edgelist)
-    graphs.append(g)
-    for node in g.nodes():
-        nodes.append(node)
+	g = nx.read_edgelist(path_to_data + 'edge_lists/' + edgelist)
+	graphs.append(g)
+	for node in g.nodes():
+		nodes.append(node)
+	degrees.append(g.degree())
+	degree_cens.append(nx.degree_centrality(g))
+	closeness_cens.append(nx.closeness_centrality(g))
+	betweenness_cens.append(nx.betweenness_centrality(g))
+	current_flow_closeness_cens.append(nx.current_flow_closeness_centrality(g))
+	current_flow_betweenness_cens.append(nx.current_flow_betweenness_centrality(g))
+	appro_current_flow_betweenness_cens.append(nx.approximate_current_flow_betweenness_centrality(g))
+	cores.append(nx.core_number(g))
+	pageranks.append(nx.pagerank(g))
 
 # wl relabeling
 labels = wl_relabeling(graphs, iterations)
 
-# assign labels to nodes in order
-node_labels = np.zeros((len(nodes)+1, 1), dtype=np.int32)
+# assign labels and features to nodes in order
+node_features = np.zeros((len(nodes)+1, 12), dtype=np.int32)
 for i, g in enumerate(graphs):
-    assert g.number_of_nodes() == len(labels[i])
-    for j, node in enumerate(g.nodes()):
-        node_labels[int(node), 0] = labels[i][j]
+	assert g.number_of_nodes() == len(labels[i])
+	for j, node in enumerate(g.nodes()):
+		node_features[int(node), 0] = labels[i][j]
+		node_features[int(node), 1] = degrees[i][node]
+		node_features[int(node), 2] = degree_cens[i][node]
+		node_features[int(node), 3] = closeness_cens[i][node]
+		node_features[int(node), 4] = betweenness_cens[i][node]
+		node_features[int(node), 5] = current_flow_closeness_cens[i][node]
+		node_features[int(node), 6] = current_flow_betweenness_cens[i][node]
+		node_features[int(node), 7] = appro_current_flow_betweenness_cens[i][node]
+		node_features[int(node), 8] = cores[i][node]
+		node_features[int(node), 9] = pageranks[i][node]
+		node_features[int(node), 10] = hits_hubs[i][node]
+		node_features[int(node), 11] = hits_auths[i][node]
 
-# add relabels to attributes
+
+# add relabels and features to attributes
 attributes = np.load(path_to_data + 'embeddings.npy')  # (#nodes, 13)
 print ('\nnode attributes shape', attributes.shape)
-attributes_relabel = np.concatenate((attributes, node_labels), axis=1)
-print ('node attributes shape after adding relabels', attributes_relabel.shape)
+attributes_added = np.concatenate((attributes, node_features), axis=1)  # (#nodes, 23)
+print ('node attributes shape after adding relabels and features', attributes_added.shape)
 
 
 ### -------------------- combine attributes and node embeddings -------------------- ###
 
 # attributes scaling
 scaler = MinMaxScaler(feature_range=(-1, 1))
-attributes_relabel = scaler.fit_transform(attributes_relabel)
+attributes_added = scaler.fit_transform(attributes_added)
 
 # node mebeddings scaling
-node_embeddings = np.load(path_to_data + 'node_embed_p0_5q3.npy')
+node_embeddings = np.load(path_to_data + 'node_embed_p2q_5_new.npy')
 node_embeddings = node_embeddings * node_embed_scale
 
 # combine attributes and node embeddings
-embeddings = np.concatenate((attributes_relabel, node_embeddings), axis=1)
-np.save(path_to_data + 'embeddings_p0_5q3.npy', embeddings, allow_pickle=False)
+embeddings = np.concatenate((attributes_added, node_embeddings), axis=1)
+np.save(path_to_data + 'embeddings_p2q_5_new.npy', embeddings, allow_pickle=False)
 print ('\nfinal embeddings shape', embeddings.shape)

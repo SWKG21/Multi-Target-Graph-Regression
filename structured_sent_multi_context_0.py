@@ -11,11 +11,12 @@ from utils import *
 from AttentionWithContext import AttentionWithContext
 from StructuredSelfAttentive import StructuredSelfAttentive
 from SentContextAttention import SentContextAttention
+from SentMultiContextAttention import SentMultiContextAttention
 from SkipConnection import SkipConnection
 
 
 """
-    context encoder: AttentionWithContext
+    context encoder: StructuredSelfAttentive
     sentence encoder: SentContextAttention, add SkipConnection
     document encoder: AttentionWithContext
 """
@@ -23,13 +24,13 @@ from SkipConnection import SkipConnection
 
 # = = = = = = = = = = = = = = =
 
-is_GPU = True
+is_GPU = False
 save_weights = True
 save_history = True
 
-path_root = ''
+path_root = '..'
 path_to_code = path_root + '/code/'
-path_to_data = path_root + 'data/'
+path_to_data = path_root + '/data/'
 
 sys.path.insert(0, path_to_code)
 
@@ -38,6 +39,8 @@ sys.path.insert(0, path_to_code)
 # = = = = = hyper-parameters = = = = =
 
 n_units = 60
+da = 15
+r = 10
 drop_rate = 0.3
 batch_size = 128
 nb_epochs = 100
@@ -88,14 +91,17 @@ sent_wv = Embedding(input_dim=embeddings.shape[0],
                     )(sent_ints)
 sent_wv_dr = Dropout(drop_rate)(sent_wv)
 sent_wa = bidir_gru(sent_wv_dr, n_units, is_GPU)
-sent_att_vec = AttentionWithContext()(sent_wa)
-sent_att_vec_dr = Dropout(drop_rate)(sent_att_vec)
-sent_encoder = Model(sent_ints, sent_att_vec_dr)
+sent_att_mat = StructuredSelfAttentive(da=da, r=r, return_matrix=True)(sent_wa)
+sent_att_mat_dr = Dropout(drop_rate)(sent_att_mat)
+print ('single out', sent_att_mat_dr.shape)
+sent_encoder = Model(sent_ints, sent_att_mat_dr)
 
 # context encoder
 context_ints = Input(shape=(docs_train.shape[2]-1, docs_train.shape[3],))
-sent_att_vecs_dr = TimeDistributed(sent_encoder)(context_ints)
-context_encoder = Model(context_ints, sent_att_vecs_dr)
+print ('TD in', context_ints.shape)
+sent_att_mats_dr = TimeDistributed(sent_encoder)(context_ints)
+print ('TD out', sent_att_mats_dr.shape)
+context_encoder = Model(context_ints, sent_att_mats_dr)
 
 ## sentence encoder with context
 sent_context_ints = Input(shape=(docs_train.shape[2], docs_train.shape[3],))
@@ -109,8 +115,10 @@ sent_wv2 = Embedding(input_dim=embeddings.shape[0],
                     )(sent_ints2)
 gc_sent_wv_dr = Dropout(drop_rate)(sent_wv2)
 gc_sent_wa = bidir_gru(gc_sent_wv_dr, n_units, is_GPU)
-context_vecs = context_encoder(context_ints2)
-gc_sent_att_vec = SentContextAttention()([gc_sent_wa, context_vecs])
+print ('context input', context_ints2.shape)
+context_mats = context_encoder(context_ints2)
+print ('context out', context_mats.shape)
+gc_sent_att_vec = SentMultiContextAttention()([gc_sent_wa, context_mats])
 gc_sent_att_vec_dr = Dropout(drop_rate)(gc_sent_att_vec)
 # skip connection
 gc_sent_added = SkipConnection()([gc_sent_att_vec_dr, gc_sent_wv_dr])

@@ -2,20 +2,21 @@ import sys
 import json
 import numpy as np
 
-from keras.backend import concatenate
+import keras.backend as K
 from keras.callbacks import EarlyStopping, ModelCheckpoint
 from keras.models import Model
-from keras.layers import Input, Embedding, Dropout, TimeDistributed, Dense, Add, add, Lambda, Reshape, Concatenate
+from keras.layers import Input, Embedding, Dropout, TimeDistributed, Dense, Lambda, Conv2D, MaxPooling1D, Concatenate
 
 from utils import *
 from AttentionWithContext import AttentionWithContext
 from StructuredSelfAttentive import StructuredSelfAttentive
 from SentContextAttention import SentContextAttention
 from SkipConnection import SkipConnection
+from CNNencoder import CNNencoder
 
 
 """
-    context encoder: AttentionWithContext
+    context encoder: CNNencoder
     sentence encoder: SentContextAttention, add SkipConnection
     document encoder: AttentionWithContext
 """
@@ -23,13 +24,13 @@ from SkipConnection import SkipConnection
 
 # = = = = = = = = = = = = = = =
 
-is_GPU = True
+is_GPU = False
 save_weights = True
 save_history = True
 
-path_root = ''
+path_root = '..'
 path_to_code = path_root + '/code/'
-path_to_data = path_root + 'data/'
+path_to_data = path_root + '/data/'
 
 sys.path.insert(0, path_to_code)
 
@@ -43,12 +44,13 @@ batch_size = 128
 nb_epochs = 100
 my_optimizer = 'adam'
 my_patience = 4
-
+nfilters = 5
+cnn_windows = [2,3,4,5,6,7,8,9]
 
 # = = = = = data loading = = = = =
 
-docs = np.load(path_to_data + 'contextual6_documents_p2q_5_50.npy')
-embeddings = np.load(path_to_data + 'embeddings_p2q_5.npy')
+docs = np.load(path_to_data + 'contextual6_documents_p2q_5_new.npy')
+embeddings = np.load(path_to_data + 'embeddings_p2q_5_new.npy')
 
 with open(path_to_data + 'train_idxs.txt', 'r') as file:
     train_idxs = file.read().splitlines()
@@ -87,8 +89,9 @@ sent_wv = Embedding(input_dim=embeddings.shape[0],
                     trainable=False,
                     )(sent_ints)
 sent_wv_dr = Dropout(drop_rate)(sent_wv)
-sent_wa = bidir_gru(sent_wv_dr, n_units, is_GPU)
-sent_att_vec = AttentionWithContext()(sent_wa)
+sent_att_vec = CNNencoder(nfilters=nfilters, cnn_windows=cnn_windows)(sent_wv_dr)
+# sent_wa = bidir_gru(sent_wv_dr, n_units, is_GPU)
+# sent_att_vec = AttentionWithContext()(sent_wa)
 sent_att_vec_dr = Dropout(drop_rate)(sent_att_vec)
 sent_encoder = Model(sent_ints, sent_att_vec_dr)
 

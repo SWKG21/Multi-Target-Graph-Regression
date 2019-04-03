@@ -47,8 +47,8 @@ my_patience = 4
 
 # = = = = = data loading = = = = =
 
-docs = np.load(path_to_data + 'contextual6_documents_p2q_5_50.npy')
-embeddings = np.load(path_to_data + 'embeddings_p2q_5.npy')
+docs = np.load(path_to_data + 'contextual6_documents_p2q_5_wl10.npy')
+embeddings = np.load(path_to_data + 'embeddings_p2q_5_wl10.npy')
 
 with open(path_to_data + 'train_idxs.txt', 'r') as file:
     train_idxs = file.read().splitlines()
@@ -66,7 +66,7 @@ val_idxs = [train_idxs[elt] for elt in idxs_select_val]
 docs_train = docs[train_idxs_new,:,:]
 docs_val = docs[val_idxs,:,:]
 
-tgt = 0
+tgt = 2
 
 with open(path_to_data + 'targets/train/target_' + str(tgt) + '.txt', 'r') as file:
     target = file.read().splitlines()
@@ -137,7 +137,7 @@ early_stopping = EarlyStopping(monitor='val_loss',
                                 mode='min')
 
 # save model corresponding to best epoch
-checkpointer = ModelCheckpoint(filepath=path_to_data + 'model_context' + str(tgt), 
+checkpointer = ModelCheckpoint(filepath=path_to_data + 'model_context_' + str(tgt), 
                                 verbose=1, 
                                 save_best_only=True,
                                 save_weights_only=True)
@@ -157,7 +157,7 @@ model.fit(docs_train,
 hist = model.history.history
 
 if save_history:
-    with open(path_to_data + 'model_history_context' + str(tgt) + '.json', 'w') as file:
+    with open(path_to_data + 'model_history_context_' + str(tgt) + '.json', 'w') as file:
         json.dump(hist, file, sort_keys=False, indent=4)
 
 print('* * * * * * * target',tgt,'done * * * * * * *')    

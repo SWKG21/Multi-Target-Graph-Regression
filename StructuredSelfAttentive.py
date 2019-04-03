@@ -17,7 +17,7 @@ class StructuredSelfAttentive(Layer):
         # next add a Dense layer (for classification/regression) or whatever...
     """
     
-    def __init__(self, da, r, return_coefficients=False,
+    def __init__(self, da, r, return_matrix=False, return_coefficients=False,
                  W_regularizer=None, u_regularizer=None, b_regularizer=None,
                  W_constraint=None, u_constraint=None, b_constraint=None,
                  bias=True, **kwargs):
@@ -37,6 +37,7 @@ class StructuredSelfAttentive(Layer):
         
         self.da = da
         self.r = r
+        self.return_matrix = return_matrix
         super(StructuredSelfAttentive, self).__init__(**kwargs)
     
 
@@ -62,7 +63,7 @@ class StructuredSelfAttentive(Layer):
         # dimension u in paper == mc_n_units here
         # x shape (batch_size, sent_len, 2u)
         ait = dot_product(K.tanh(dot_product(x, self.W_s1)), self.W_s2)  # (batch_size, sent_len, r)
-        a = K.exp(ait)
+        a = K.exp(ait)  # (batch_size, sent_len, r)
 
         # apply mask after the exp. will be re-normalized next
         if mask is not None:
@@ -72,16 +73,22 @@ class StructuredSelfAttentive(Layer):
         # in some cases especially in the early stages of training the sum may be almost zero
         # and this results in NaN's. A workaround is to add a very small positive number ε to the sum.
         # a /= K.cast(K.sum(a, axis=1, keepdims=True), K.floatx())
-        a /= K.cast(K.sum(a, axis=1, keepdims=True) + K.epsilon(), K.floatx())
+        a /= K.cast(K.sum(a, axis=1, keepdims=True) + K.epsilon(), K.floatx())  # (batch_size, sent_len, r)
         
         a = K.permute_dimensions(a, (0, 2, 1))  # (batch_size, r, sent_len)
         weighted_input = K.batch_dot(a, x)  # (batch_size, r, 2u)
         
         # sum by r, output a vector for each (batch_size, 2u)
         if self.return_coefficients:
-            return [K.sum(weighted_input, axis=1), a]
+            if self.return_matrix:
+                return [weighted_input, a]
+            else:
+                return [K.sum(weighted_input, axis=1), a]
         else:
-            return K.sum(weighted_input, axis=1)
+            if self.return_matrix:
+                return weighted_input
+            else:
+                return K.sum(weighted_input, axis=1)
     
     
     def compute_output_shape(self, input_shape):

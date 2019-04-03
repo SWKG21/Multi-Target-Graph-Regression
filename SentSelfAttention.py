@@ -39,14 +39,15 @@ class SentSelfAttention(AttentionWithContext):
     def call(self, x, mask=None):
         # x with (batch_size, sent_len, 2*n_units)
         u = K.mean(x, axis=1)  # (batch_size, 2*n_units)
-        uit = dot_product(x, self.W)
+        uit = dot_product(x, self.W)  # (batch_size, sent_len, 2*n_units)
         
         if self.bias:
             uit += self.b
         
-        uit = K.tanh(uit)
-        ait = K.batch_dot(uit, u)  # use batch_dot rather dot_product because u shape (?, 2*n_units), self.u shape (2*n_units,)
-        a = K.exp(ait)
+        uit = K.tanh(uit)  # (batch_size, sent_len, 2*n_units)
+        # use batch_dot rather dot_product because u shape (?, 2*n_units), self.u shape (2*n_units,)
+        ait = K.batch_dot(uit, u)  # (batch_size, sent_len)
+        a = K.exp(ait)  # (batch_size, sent_len)
         
         # apply mask after the exp. will be re-normalized next
         if mask is not None:
@@ -58,7 +59,7 @@ class SentSelfAttention(AttentionWithContext):
         # a /= K.cast(K.sum(a, axis=1, keepdims=True), K.floatx())
         a /= K.cast(K.sum(a, axis=1, keepdims=True) + K.epsilon(), K.floatx())
 
-        a = K.expand_dims(a)
+        a = K.expand_dims(a)  # (batch_size, sent_len, 1)
         weighted_input = x * a  # (batch_size, sent_len, 2*n_units)
         
         # sum by sent_len, output shape (batch_size, 2*n_units)

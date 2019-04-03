@@ -7,25 +7,25 @@ from AttentionWithContext import *
 
 
 """
-    For document encoder, 
+    For sentence encoder, 
     input: 
-        x == sentence vectors from AttentionWithContext;
-        u == mean of sentence vectors from StructuredSelfAttentive;
+        x == word vectors;
+        u == mean of contextual sentence vectors from AttentionWithContext;
     output: 
-        document vector
+        sent vector
 """
 
-class DocStructuredAttention(AttentionWithContext):
+class SentMultiContextAttention(AttentionWithContext):
     """
     Example:
         model.add(LSTM(64, return_sequences=True))
-        model.add(DocStructuredAttention())
+        model.add(SentMultiContextAttention())
         # next add a Dense layer (for classification/regression) or whatever...
     """
     
     def build(self, input_shapes):
         assert len(input_shapes[0]) == 3
-        assert len(input_shapes[1]) == 3
+        assert len(input_shapes[1]) == 4
         input_shape = input_shapes[0]
         
         self.W = self.add_weight((input_shape[-1], input_shape[-1],),
@@ -42,37 +42,38 @@ class DocStructuredAttention(AttentionWithContext):
 
     
     def call(self, xs, mask=None):
-        x = xs[0]  # (batch_size, doc_len, 2*n_units)
-        # xs[1] with (batch_size, doc_len, 2*n_units)
-        u = K.mean(xs[1], axis=1)  # (batch_size, 2*n_units)
-        uit = dot_product(x, self.W)  # (batch_size, doc_len, 2*n_units)
+        x = xs[0]  # (batch_size, sent_len, 2*n_units)
+        # xs[1] with (batch_size, window_size, r, 2*n_units)
+        u = K.mean(xs[1], axis=1)  # (batch_size, r, 2*n_units)
+        u = K.permute_dimensions(u, (0, 2, 1))  # (batch_size, 2*n_units, r)
+        uit = dot_product(x, self.W)  # (batch_size, sent_len, 2*n_units)
         
         if self.bias:
             uit += self.b
         
-        uit = K.tanh(uit)  # (batch_size, doc_len, 2*n_units)
+        uit = K.tanh(uit)  # (batch_size, sent_len, 2*n_units)
         # use batch_dot rather dot_product because u shape (?, 2*n_units), self.u shape (2*n_units,)
-        ait = K.batch_dot(uit, u)  # (batch_size, doc_len)
-        a = K.exp(ait)  # (batch_size, doc_len)
+        ait = K.batch_dot(uit, u)  # (batch_size, sent_len, r)
+        a = K.exp(ait)  # (batch_size, sent_len, r)
         
-        # apply mask after the exp. will be re-normalized next
-        if mask is not None:
-            # Cast the mask to floatX to avoid float64 upcasting in theano
-            a *= K.cast(mask, K.floatx())
+        # # apply mask after the exp. will be re-normalized next
+        # if mask is not None:
+        #     # Cast the mask to floatX to avoid float64 upcasting in theano
+        #     a *= K.cast(mask, K.floatx())
         
         # in some cases especially in the early stages of training the sum may be almost zero
         # and this results in NaN's. A workaround is to add a very small positive number ε to the sum.
         # a /= K.cast(K.sum(a, axis=1, keepdims=True), K.floatx())
-        a /= K.cast(K.sum(a, axis=1, keepdims=True) + K.epsilon(), K.floatx())
+        a /= K.cast(K.sum(a, axis=1, keepdims=True) + K.epsilon(), K.floatx())  # (batch_size, sent_len, r)
 
-        a = K.expand_dims(a)  # (batch_size, doc_len, 1)
-        weighted_input = x * a  # (batch_size, doc_len, 2*n_units)
+        a = K.permute_dimensions(a, (0, 2, 1))  # (batch_size, r, sent_len)
+        weighted_inputs = K.batch_dot(a, x)  # (batch_size, r, 2*n_units)
         
-        # sum by doc_len, output shape (batch_size, 2*n_units)
+        # mean by r, output shape (batch_size, 2*n_units)
         if self.return_coefficients:
-            return [K.sum(weighted_input, axis=1), a]
+            return [K.mean(weighted_input, axis=1), a]
         else:
-            return K.sum(weighted_input, axis=1)
+            return K.mean(weighted_input, axis=1)
     
     
     def compute_output_shape(self, input_shapes):

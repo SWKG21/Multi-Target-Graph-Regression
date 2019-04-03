@@ -20,13 +20,13 @@ from SkipConnection import SkipConnection
 
 # = = = = = = = = = = = = = = =
 
-is_GPU = True
+is_GPU = False
 save_weights = True
 save_history = True
 
-path_root = ''
+path_root = '..'
 path_to_code = path_root + '/code/'
-path_to_data = path_root + 'data/'
+path_to_data = path_root + '/data/'
 
 sys.path.insert(0, path_to_code)
 

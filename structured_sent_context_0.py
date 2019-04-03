@@ -15,8 +15,8 @@ from SkipConnection import SkipConnection
 
 
 """
-    context encoder: AttentionWithContext
-    sentence encoder: SentContextAttention, add SkipConnection
+    context encoder: StructuredSelfAttentive
+    sentence encoder: SentContextAttention
     document encoder: AttentionWithContext
 """
 
@@ -38,6 +38,8 @@ sys.path.insert(0, path_to_code)
 # = = = = = hyper-parameters = = = = =
 
 n_units = 60
+da = 15
+r = 10
 drop_rate = 0.3
 batch_size = 128
 nb_epochs = 100
@@ -88,7 +90,7 @@ sent_wv = Embedding(input_dim=embeddings.shape[0],
                     )(sent_ints)
 sent_wv_dr = Dropout(drop_rate)(sent_wv)
 sent_wa = bidir_gru(sent_wv_dr, n_units, is_GPU)
-sent_att_vec = AttentionWithContext()(sent_wa)
+sent_att_vec = StructuredSelfAttentive(da=da, r=r)(sent_wa)
 sent_att_vec_dr = Dropout(drop_rate)(sent_att_vec)
 sent_encoder = Model(sent_ints, sent_att_vec_dr)
 
@@ -112,9 +114,10 @@ gc_sent_wa = bidir_gru(gc_sent_wv_dr, n_units, is_GPU)
 context_vecs = context_encoder(context_ints2)
 gc_sent_att_vec = SentContextAttention()([gc_sent_wa, context_vecs])
 gc_sent_att_vec_dr = Dropout(drop_rate)(gc_sent_att_vec)
-# skip connection
-gc_sent_added = SkipConnection()([gc_sent_att_vec_dr, gc_sent_wv_dr])
-gc_sent_encoder = Model(sent_context_ints, gc_sent_added)
+gc_sent_encoder = Model(sent_context_ints, gc_sent_att_vec_dr)
+# # skip connection
+# gc_sent_added = SkipConnection()([gc_sent_att_vec_dr, gc_sent_wv_dr])
+# gc_sent_encoder = Model(sent_context_ints, gc_sent_added)
 
 ## doc encoder
 doc_ints = Input(shape=(docs_train.shape[1], docs_train.shape[2], docs_train.shape[3],))
