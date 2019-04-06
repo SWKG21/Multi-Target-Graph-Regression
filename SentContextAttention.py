@@ -25,7 +25,7 @@ class SentContextAttention(AttentionWithContext):
     
     def build(self, input_shapes):
         assert len(input_shapes[0]) == 3
-        assert len(input_shapes[1]) == 3
+        # assert len(input_shapes[1]) == 3
         # input_shape = input_shapes[0]
         
         self.W = self.add_weight((input_shapes[1][-1], input_shapes[0][-1],),
@@ -43,15 +43,18 @@ class SentContextAttention(AttentionWithContext):
     
     def call(self, xs, mask=None):
         x = xs[0]  # (batch_size, sent_len, 2*n_units)
-        # xs[1] with (batch_size, window_size, 2*n_units)
-        u = K.mean(xs[1], axis=1)  # (batch_size, 2*n_units)
-        uit = dot_product(x, self.W)  # (batch_size, sent_len, 2*n_units)
+        # xs[1] with (batch_size, window_size, udim)
+        if len(K.int_shape(xs[1])) == 3:
+            u = K.mean(xs[1], axis=1)  # (batch_size, udim)
+        elif len(K.int_shape(xs[1])) == 2:
+            u = xs[1]  # (batch_size, udim)
+        uit = dot_product(x, self.W)  # (batch_size, sent_len, udim)
         
         if self.bias:
             uit += self.b
         
-        uit = K.tanh(uit)  # (batch_size, sent_len, 2*n_units)
-        # use batch_dot rather dot_product because u shape (?, 2*n_units), self.u shape (2*n_units,)
+        uit = K.tanh(uit)  # (batch_size, sent_len, udim)
+        # use batch_dot rather dot_product because u shape (?, udim), self.u shape (udim,)
         ait = K.batch_dot(uit, u)  # (batch_size, sent_len)
         a = K.exp(ait)  # (batch_size, sent_len)
         

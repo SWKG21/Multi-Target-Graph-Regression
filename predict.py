@@ -23,11 +23,8 @@ sys.path.insert(0, path_to_code)
 
 # = = = = = = = = = = = = = = =
 
-docs = np.load(path_to_data + 'documents_p2q_5_wl10.npy')
-embeddings = np.load(path_to_data + 'embeddings_p2q_5_wl10.npy')
-features = np.load(path_to_data + 'node_features.npy')
-embeddings = np.concatenate((embeddings, features), axis=1)
-embeddings[-1, :] = 0
+docs = np.load(path_to_data + 'documents_p2q_5_new.npy')
+embeddings = np.load(path_to_data + 'embeddings_p2q_5_new.npy')
 
 with open(path_to_data + 'train_idxs.txt', 'r') as file:
     train_idxs = file.read().splitlines()
@@ -42,11 +39,11 @@ docs_test = docs[train_idxs,:,:]
 
 # = = = = = TRAINING RESULTS = = = = = 
 
-tgt = 2
+tgt = 0
     
 print('* * * * * * *',tgt,'* * * * * * *')
 
-with open(path_to_data + '/model_history_sm_2l2l' + str(tgt) + '.json', 'r') as file:
+with open(path_to_data + '/model_history_sm_2l2l_' + str(tgt) + '.json', 'r') as file:
     hist = json.load(file)
 
 val_mse = hist['val_loss']
@@ -116,7 +113,7 @@ doc_att_vec_dr = Dropout(drop_rate)(doc_att_vec)
 preds = Dense(units=1)(doc_att_vec_dr)
 model = Model(doc_ints, preds)
 
-model.load_weights(path_to_data + 'model_sm_2l2l' + str(tgt))
+model.load_weights(path_to_data + 'model_sm_2l2l_' + str(tgt))
 
 preds = model.predict(docs_test).tolist()
 preds = [pred[0] for pred in preds]

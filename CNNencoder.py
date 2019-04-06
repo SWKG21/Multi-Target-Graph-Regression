@@ -1,7 +1,7 @@
 import keras.backend as K
 from keras.layers import Layer
 from keras import initializers, regularizers, constraints
-from keras.layers import Input, Embedding, Dropout, TimeDistributed, Dense, Lambda, Conv2D, MaxPooling1D
+from keras.layers import Input, Embedding, Dropout, TimeDistributed, Dense, Lambda, Conv2D, GlobalMaxPooling1D, Concatenate
 
 from utils import *
 
@@ -31,7 +31,7 @@ class CNNencoder(Layer):
         # next add a Dense layer (for classification/regression) or whatever...
     """
     
-    def __init__(self, nfilters, cnn_windows, return_coefficients=False,
+    def __init__(self, nfilters, cnn_windows, embed_dim, return_coefficients=False,
                  W_regularizer=None, u_regularizer=None, b_regularizer=None,
                  W_constraint=None, u_constraint=None, b_constraint=None,
                  bias=True, **kwargs):
@@ -49,8 +49,16 @@ class CNNencoder(Layer):
         
         self.bias = bias
 
-        self.nfilters = nfilters
-        self.cnn_windows = cnn_windows
+        # self.nfilters = nfilters
+        # self.cnn_windows = cnn_windows
+
+        self.conv2ds = []
+        self.sqs = []
+        self.mps = []
+        for window in cnn_windows:
+            self.conv2ds.append(Conv2D(filters=nfilters, kernel_size=(window, embed_dim), data_format='channels_first'))  # (batch_size, #filters, sent_len-window+1, 1)
+            self.sqs.append(Lambda(lambda x: K.squeeze(x, axis=-1)))  # (batch_size, #filters, sent_len-window+1)
+            self.mps.append(GlobalMaxPooling1D(data_format='channels_first'))  # (batch_size, #filters)
         super(CNNencoder, self).__init__(**kwargs)
     
     
@@ -61,16 +69,31 @@ class CNNencoder(Layer):
     
     def call(self, x, mask=None):
         # x with shape (batch_size, sent_len, embedding_dim)
-        x = K.expand_dims(x, axis=1)  # (batch_size, 1, sent_len, embedding_dim)
-        convs = []
-        for window in self.cnn_windows:
-            tmp = Conv2D(filters=self.nfilters, kernel_size=(window, K.int_shape(x)[-1]), data_format='channels_first')(x)  # (batch_size, #filters, sent_len-window+1, 1)
-            tmp = K.squeeze(tmp, axis=-1)  # (batch_size, #filters, sent_len-window+1)
-            tmp = MaxPooling1D(pool_size=K.int_shape(tmp)[-1], data_format='channels_first')(tmp)  # (batch_size, #filters, 1)
-            tmp = K.squeeze(tmp, axis=-1)  # (batch_size, #filters)
-            convs.append(tmp)
-        output = K.concatenate(convs, axis=1)  # (batch_size, #filters*#windows)
-        return output
+        x = K.expand_dims(x, axis=1)
+        return x
+        # x = Lambda(lambda y: K.expand_dims(y, axis=1))(x)  # (batch_size, 1, sent_len, embedding_dim)
+        
+        # # tmp = self.conv2ds[0](x)
+        # # tmp = self.sqs[0](tmp)
+        # # tmp = self.mps[0](tmp)
+        # # return tmp
+
+        # # convs = []
+        # # for window in self.cnn_windows:
+        # #     tmp = Conv2D(filters=self.nfilters, strides=(1, 1), padding='valid', dilation_rate=(1, 1), kernel_size=(window, K.int_shape(x)[-1]), data_format='channels_first')(x)  # (batch_size, #filters, sent_len-window+1, 1)
+        # #     tmp = Lambda(lambda x: K.squeeze(x, axis=-1))(tmp)  # (batch_size, #filters, sent_len-window+1)
+        # #     tmp = GlobalMaxPooling1D(data_format='channels_first')(tmp)  # (batch_size, #filters)
+        # #     convs.append(tmp)
+        
+        # convs = []
+        # for i in range(len(self.conv2ds)):
+        #     tmp = self.conv2ds[i](x)
+        #     tmp = self.sqs[i](tmp)
+        #     tmp = self.mps[i](tmp)
+        #     convs.append(tmp)
+
+        # output = Concatenate(axis=1)(convs)  # (batch_size, #filters*#windows)
+        # return output
     
     
     def compute_output_shape(self, input_shape):

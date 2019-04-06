@@ -5,18 +5,17 @@ import numpy as np
 import keras.backend as K
 from keras.callbacks import EarlyStopping, ModelCheckpoint
 from keras.models import Model
-from keras.layers import Input, Embedding, Dropout, TimeDistributed, Dense, Lambda, Conv2D, MaxPooling1D, Concatenate
+from keras.layers import Input, Embedding, Dropout, TimeDistributed, Dense, Lambda, Conv2D, GlobalMaxPooling1D, Concatenate
 
 from utils import *
 from AttentionWithContext import AttentionWithContext
 from StructuredSelfAttentive import StructuredSelfAttentive
 from SentContextAttention import SentContextAttention
 from SkipConnection import SkipConnection
-from CNNencoder import CNNencoder
 
 
 """
-    context encoder: CNNencoder
+    context encoder: AttentionWithContext, CNN as combination
     sentence encoder: SentContextAttention, add SkipConnection
     document encoder: AttentionWithContext
 """
@@ -24,13 +23,13 @@ from CNNencoder import CNNencoder
 
 # = = = = = = = = = = = = = = =
 
-is_GPU = False
+is_GPU = True
 save_weights = True
 save_history = True
 
-path_root = '..'
+path_root = ''
 path_to_code = path_root + '/code/'
-path_to_data = path_root + '/data/'
+path_to_data = path_root + 'data/'
 
 sys.path.insert(0, path_to_code)
 
@@ -44,7 +43,7 @@ batch_size = 128
 nb_epochs = 100
 my_optimizer = 'adam'
 my_patience = 4
-nfilters = 5
+nfilters = 6
 cnn_windows = [2,3,4,5,6,7,8,9]
 
 # = = = = = data loading = = = = =
@@ -68,7 +67,7 @@ val_idxs = [train_idxs[elt] for elt in idxs_select_val]
 docs_train = docs[train_idxs_new,:,:]
 docs_val = docs[val_idxs,:,:]
 
-tgt = 0
+tgt = 2
 
 with open(path_to_data + 'targets/train/target_' + str(tgt) + '.txt', 'r') as file:
     target = file.read().splitlines()
@@ -80,7 +79,7 @@ print('data loaded')
 
 # = = = = = defining architecture = = = = =
 
-## sent encoder for context
+## sent encoder using CNN for context
 sent_ints = Input(shape=(docs_train.shape[3],))
 sent_wv = Embedding(input_dim=embeddings.shape[0],
                     output_dim=embeddings.shape[1],
@@ -89,15 +88,35 @@ sent_wv = Embedding(input_dim=embeddings.shape[0],
                     trainable=False,
                     )(sent_ints)
 sent_wv_dr = Dropout(drop_rate)(sent_wv)
-sent_att_vec = CNNencoder(nfilters=nfilters, cnn_windows=cnn_windows)(sent_wv_dr)
-# sent_wa = bidir_gru(sent_wv_dr, n_units, is_GPU)
-# sent_att_vec = AttentionWithContext()(sent_wa)
+
+# x = CNNencoder(nfilters=nfilters, cnn_windows=cnn_windows, embed_dim=embeddings.shape[1])(sent_wv_dr)
+
+# x = Lambda(lambda x: K.expand_dims(x, axis=1))(sent_wv_dr)  # (batch_size, 1, sent_len, embedding_dim)
+# convs = []
+# for window in cnn_windows:
+#     tmp = Conv2D(filters=nfilters, kernel_size=(window, embeddings.shape[1]), data_format='channels_first')(x)  # (batch_size, #filters, sent_len-window+1, 1)
+#     tmp = Lambda(lambda x: K.squeeze(x, axis=-1))(tmp)  # (batch_size, #filters, sent_len-window+1)
+#     tmp = GlobalMaxPooling1D(data_format='channels_first')(tmp)  # (batch_size, #filters)
+#     convs.append(tmp)
+# sent_att_vec = Concatenate(axis=1)(convs)  # (batch_size, #filters*#windows)
+
+sent_wa = bidir_gru(sent_wv_dr, n_units, is_GPU)
+sent_att_vec = AttentionWithContext()(sent_wa)
+
 sent_att_vec_dr = Dropout(drop_rate)(sent_att_vec)
 sent_encoder = Model(sent_ints, sent_att_vec_dr)
 
-# context encoder
+# context encoder using CNN
 context_ints = Input(shape=(docs_train.shape[2]-1, docs_train.shape[3],))
-sent_att_vecs_dr = TimeDistributed(sent_encoder)(context_ints)
+sent_att_vecs_dr = TimeDistributed(sent_encoder)(context_ints)  # (batch_size, 6, 2*n_units)
+sent_att_vecs_dr = Lambda(lambda x: K.expand_dims(x, axis=1))(sent_att_vecs_dr)  # (batch_size, 1, 6, 2*n_units)
+convs = []
+for window in [2,3,4,5]:
+    tmp = Conv2D(filters=nfilters, kernel_size=(window, K.int_shape(sent_att_vecs_dr)[-1]), activation='relu', data_format='channels_first')(sent_att_vecs_dr)  # (batch_size, #filters, 6-window+1, 1)
+    tmp = Lambda(lambda x: K.squeeze(x, axis=-1))(tmp)  # (batch_size, #filters, 6-window+1)
+    tmp = GlobalMaxPooling1D(data_format='channels_first')(tmp)  # (batch_size, #filters)
+    convs.append(tmp)
+sent_att_vecs_dr = Concatenate(axis=1)(convs)  # (batch_size, #filters*4)
 context_encoder = Model(context_ints, sent_att_vecs_dr)
 
 ## sentence encoder with context
@@ -140,7 +159,7 @@ early_stopping = EarlyStopping(monitor='val_loss',
                                 mode='min')
 
 # save model corresponding to best epoch
-checkpointer = ModelCheckpoint(filepath=path_to_data + 'model_context' + str(tgt), 
+checkpointer = ModelCheckpoint(filepath=path_to_data + 'model_cnncontext_' + str(tgt), 
                                 verbose=1, 
                                 save_best_only=True,
                                 save_weights_only=True)
@@ -160,7 +179,7 @@ model.fit(docs_train,
 hist = model.history.history
 
 if save_history:
-    with open(path_to_data + 'model_history_context' + str(tgt) + '.json', 'w') as file:
+    with open(path_to_data + 'model_history_cnncontext_' + str(tgt) + '.json', 'w') as file:
         json.dump(hist, file, sort_keys=False, indent=4)
 
 print('* * * * * * * target',tgt,'done * * * * * * *')    

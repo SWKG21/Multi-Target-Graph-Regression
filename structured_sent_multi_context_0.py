@@ -50,8 +50,8 @@ my_patience = 4
 
 # = = = = = data loading = = = = =
 
-docs = np.load(path_to_data + 'contextual6_documents_p2q_5_50.npy')
-embeddings = np.load(path_to_data + 'embeddings_p2q_5.npy')
+docs = np.load(path_to_data + 'contextual6_documents_p2q_5_new.npy')
+embeddings = np.load(path_to_data + 'embeddings_p2q_5_new.npy')
 
 with open(path_to_data + 'train_idxs.txt', 'r') as file:
     train_idxs = file.read().splitlines()
@@ -99,7 +99,7 @@ sent_encoder = Model(sent_ints, sent_att_mat_dr)
 # context encoder
 context_ints = Input(shape=(docs_train.shape[2]-1, docs_train.shape[3],))
 print ('TD in', context_ints.shape)
-sent_att_mats_dr = TimeDistributed(sent_encoder)(context_ints)
+sent_att_mats_dr = TimeDistributed(sent_encoder, input_shape=(6, 12))(context_ints)
 print ('TD out', sent_att_mats_dr.shape)
 context_encoder = Model(context_ints, sent_att_mats_dr)
 
