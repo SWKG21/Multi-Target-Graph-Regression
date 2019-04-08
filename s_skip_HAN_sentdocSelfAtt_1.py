@@ -4,7 +4,7 @@ import numpy as np
 
 from keras.callbacks import EarlyStopping, ModelCheckpoint
 from keras.models import Model
-from keras.layers import Input, Embedding, Dropout, TimeDistributed, Dense, Add, add
+from keras.layers import Input, Embedding, Dropout, TimeDistributed, Dense, Add, LeakyReLU
 from keras.utils import plot_model
 
 from utils import *
@@ -37,16 +37,16 @@ sys.path.insert(0, path_to_code)
 
 n_units = 60
 drop_rate = 0.3
-batch_size = 128
+batch_size = 256
 nb_epochs = 100
 my_optimizer = 'adam'
-my_patience = 4
+my_patience = 6
 
 
 # = = = = = data loading = = = = =
 
-docs = np.load(path_to_data + 'documents_p2q_5_50.npy')
-embeddings = np.load(path_to_data + 'embeddings_p2q_5.npy')
+docs = np.load(path_to_data + 'documents_p2q_5_wl10_em12.npy')
+embeddings = np.load(path_to_data + 'embeddings_p2q_5_wl10_em12.npy')
 
 with open(path_to_data + 'train_idxs.txt', 'r') as file:
     train_idxs = file.read().splitlines()
@@ -64,7 +64,7 @@ val_idxs = [train_idxs[elt] for elt in idxs_select_val]
 docs_train = docs[train_idxs_new,:,:]
 docs_val = docs[val_idxs,:,:]
 
-tgt = 0
+tgt = 1
 
 with open(path_to_data + 'targets/train/target_' + str(tgt) + '.txt', 'r') as file:
     target = file.read().splitlines()
@@ -88,6 +88,7 @@ sent_wv = Embedding(input_dim=embeddings.shape[0],
 ## HAN sent encoder
 sent_wv_dr = Dropout(drop_rate)(sent_wv)
 sent_wa = bidir_gru(sent_wv_dr, n_units, is_GPU)
+sent_wa = bidir_gru(sent_wa, n_units, is_GPU)
 sent_att_vec, word_att_coeffs = SentSelfAttention(return_coefficients=True)(sent_wa)
 sent_att_vec_dr = Dropout(drop_rate)(sent_att_vec)
 # skip connection
@@ -97,9 +98,14 @@ sent_encoder = Model(sent_ints, sent_added)
 doc_ints = Input(shape=(docs_train.shape[1], docs_train.shape[2],))
 sent_att_vecs_dr = TimeDistributed(sent_encoder)(doc_ints)
 doc_sa = bidir_gru(sent_att_vecs_dr, n_units, is_GPU)
+doc_sa = bidir_gru(doc_sa, n_units, is_GPU)
 doc_att_vec, sent_att_coeffs = SentSelfAttention(return_coefficients=True)(doc_sa)
 doc_att_vec_dr = Dropout(drop_rate)(doc_att_vec)
 
+doc_att_vec_dr = Dense(units=40)(doc_att_vec_dr)
+doc_att_vec_dr = LeakyReLU(alpha=0.01)(doc_att_vec_dr)
+doc_att_vec_dr = Dense(units=20)(doc_att_vec_dr)
+doc_att_vec_dr = LeakyReLU(alpha=0.01)(doc_att_vec_dr)
 preds = Dense(units=1)(doc_att_vec_dr)
 model = Model(doc_ints, preds)
 

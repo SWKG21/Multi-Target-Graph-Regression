@@ -4,7 +4,7 @@ import numpy as np
 
 from keras.callbacks import EarlyStopping, ModelCheckpoint
 from keras.models import Model
-from keras.layers import Input, Embedding, Dropout, TimeDistributed, Dense, Add, add
+from keras.layers import Input, Embedding, Dropout, TimeDistributed, Dense, Add, LeakyReLU
 
 from utils import *
 from AttentionWithContext import AttentionWithContext
@@ -38,8 +38,8 @@ n_units = 60
 mc_n_units = 100
 da = 15
 r = 10
-drop_rate = 0.3
-batch_size = 128
+drop_rate = 0.2
+batch_size = 256
 nb_epochs = 200
 my_optimizer = 'adam'
 my_patience = 10
@@ -66,7 +66,7 @@ val_idxs = [train_idxs[elt] for elt in idxs_select_val]
 docs_train = docs[train_idxs_new,:,:]
 docs_val = docs[val_idxs,:,:]
 
-tgt = 3
+tgt = 2
 
 with open(path_to_data + 'targets/train/target_' + str(tgt) + '.txt', 'r') as file:
     target = file.read().splitlines()
@@ -125,6 +125,7 @@ mc_doc_sa = bidir_gru(mc_doc_sa, n_units, is_GPU)
 doc_att_vec, sent_att_coeffs = DocStructuredAttention(return_coefficients=True)([doc_sa, mc_doc_sa])
 doc_att_vec_dr = Dropout(drop_rate)(doc_att_vec)
 
+doc_att_vec_dr = LeakyReLU(alpha=0.01)(doc_att_vec_dr)
 preds = Dense(units=1)(doc_att_vec_dr)
 model = Model(doc_ints, preds)
 

@@ -6,6 +6,7 @@ import keras.backend as K
 from keras.callbacks import EarlyStopping, ModelCheckpoint
 from keras.models import Model
 from keras.layers import Input, Embedding, Dropout, TimeDistributed, Dense, Lambda, Conv2D, GlobalMaxPooling1D, Concatenate
+from keras.optimizers import SGD
 
 from utils import *
 from AttentionWithContext import AttentionWithContext
@@ -39,9 +40,9 @@ sys.path.insert(0, path_to_code)
 
 n_units = 60
 drop_rate = 0.3
-batch_size = 128
+batch_size = 256
 nb_epochs = 100
-my_optimizer = 'adam'
+my_optimizer = SGD(lr=0.01, decay=1e-6, momentum=0.9, nesterov=True)
 my_patience = 4
 nfilters = 6
 cnn_windows = [2,3,4,5,6,7,8,9]
@@ -145,6 +146,10 @@ doc_sa = bidir_gru(gc_sent_att_vecs_dr, n_units, is_GPU)
 doc_att_vec = AttentionWithContext()(doc_sa)
 doc_att_vec_dr = Dropout(drop_rate)(doc_att_vec)
 
+doc_att_vec_dr = Dense(units=40)(doc_att_vec_dr)
+doc_att_vec_dr = LeakyReLU(alpha=0.01)(doc_att_vec_dr)
+doc_att_vec_dr = Dense(units=20)(doc_att_vec_dr)
+doc_att_vec_dr = LeakyReLU(alpha=0.01)(doc_att_vec_dr)
 preds = Dense(units=1)(doc_att_vec_dr)
 model = Model(doc_ints, preds)
 
