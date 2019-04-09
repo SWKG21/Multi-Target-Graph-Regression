@@ -7,7 +7,7 @@ from utils import *
 
 # = = = = = = = = = = = = = = =
 
-path_to_data = 'data/'
+path_to_data = '/content/data/'
 
 # 0-based index of the last row of the embedding matrix (for zero-padding)
 pad_vec_idx = 1685894
@@ -18,14 +18,14 @@ parts = 4
 # node2vec walks parameters
 p = 2  # 1/p to go back
 q = 0.5  # 1/q to go out
-num_walks = 6
+num_walks = 5
 min_walk_length = 10
-max_walk_length = 12
+max_walk_length = 10
 
 # node2vec embedding parameters
-embedding_dim = 12
+embedding_dim = 8
 window_size = 5
-node_embed_scale = 10
+node_embed_scale = 10  # node mebedding values' range is usually around (-0.1, 0.1)
 
 # maximum number of 'sentences' (walks) in each pseudo-document
 max_doc_size = 50
@@ -33,12 +33,12 @@ max_doc_size = 50
 # WL relabeling iterations
 iterations = 10
 
-
 # = = = = = = = = = = = = = = =
 
 # sort by graph ID
 edgelists = os.listdir(path_to_data + 'edge_lists/')
 edgelists.sort(key=natural_keys)
+
 
 ### -------------------- node2vec sampling and embedding -------------------- ###
 
@@ -52,10 +52,10 @@ for i in range(1, parts):
 generate_docs_embeddings(path_to_data, parts, edgelists[start:], embedding_dim, window_size, num_walks, min_walk_length, max_walk_length, p, q, pad_vec_idx, max_doc_size)
 
 # combine parts of documents
-concatenate_npy(path_to_data, 'documents', parts, 'documents_p2q_5_wl10_em12.npy')
+concatenate_npy(path_to_data, 'documents', parts, 'documents_final.npy')
 
 # combine parts of node embeddings
-concatenate_npy(path_to_data, 'node_embed', parts, 'node_embed_p2q_5_wl10_em12.npy')
+concatenate_npy(path_to_data, 'node_embed', parts, 'node_embed_final.npy')
 
 
 ### -------------------- WL relabeling & extra node features -------------------- ###
@@ -119,7 +119,7 @@ for i, g in enumerate(graphs):
 # add relabels and features to attributes
 attributes = np.load(path_to_data + 'embeddings.npy')  # (#nodes, 13)
 print ('\nnode attributes shape', attributes.shape)
-attributes_added = np.concatenate((attributes, node_features), axis=1)  # (#nodes, 23)
+attributes_added = np.concatenate((attributes, node_features), axis=1)  # (#nodes, 26)
 print ('node attributes shape after adding relabels and features', attributes_added.shape)
 
 
@@ -129,11 +129,14 @@ print ('node attributes shape after adding relabels and features', attributes_ad
 scaler = MinMaxScaler(feature_range=(-1, 1))
 attributes_added = scaler.fit_transform(attributes_added)
 
+# set last line of attributes 0, node embeddings have already been set 0 in concatenate_npy
+attributes_added[-1, :] = 0
+
 # node mebeddings scaling
-node_embeddings = np.load(path_to_data + 'node_embed_p2q_5_wl10_em12.npy')
+node_embeddings = np.load(path_to_data + 'node_embed_final.npy')
 node_embeddings = node_embeddings * node_embed_scale
 
 # combine attributes and node embeddings
 embeddings = np.concatenate((attributes_added, node_embeddings), axis=1)
-np.save(path_to_data + 'embeddings_p2q_5_wl10_em12.npy', embeddings, allow_pickle=False)
+np.save(path_to_data + 'embeddings_final.npy', embeddings, allow_pickle=False)
 print ('\nfinal embeddings shape', embeddings.shape)
