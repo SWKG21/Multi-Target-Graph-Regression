@@ -13,8 +13,8 @@ Keras
 
 helper files:
 
-    utils.py: contain helper functions
-    custom_layers.py: custom layers written by ourselves
+    utils.py: helper functions
+    custom_layers.py: custom layers
 
 executive files:
 	
