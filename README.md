@@ -1,8 +1,13 @@
 # Predict continuous values associated with graphs
 
 This is a project for a Kaggle InClass Prediction Competition [ALTEGRAD 2019 data challenge
-](https://www.kaggle.com/c/altegrad-19). This competition belongs to the course "Advanced Learning for Text and Graph Data" of Master Data Sciences at École Polytechnique. The introduction and challenge requirements are in `Altegrad_challenge_2019.pdf`.
+](https://www.kaggle.com/c/altegrad-19). This competition belongs to the course "Advanced Learning for Text and Graph Data" of Master Data Sciences at École Polytechnique. The introduction and challenge requirements are in `Altegrad_challenge_2019.pdf`. Our report is in `reports_Activators.pdf`.
 
+### Prerequisite
+
+networkx
+node2vec
+Keras
 
 ### File description
 
